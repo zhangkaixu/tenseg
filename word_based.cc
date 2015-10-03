@@ -3,6 +3,7 @@
 #include <fstream>
 #include <algorithm>
 #include <string>
+#include <set>
 #include <vector>
 #include <memory>
 #include "tenseg.h"
@@ -17,13 +18,43 @@ using namespace tenseg;
 
 
 class Lattice_Generator {
+    enum char_type_t {
+        NORMAL,
+        PUNC
+    };
+    set<string> _punc;
+    vector<char_type_t> _types;
+
+
+    void _calc_type(const string& raw,
+            const vector<size_t>& off) {
+        _types.clear();
+        for (size_t i = 0; i < off.size() - 1; i++) {
+            string ch = raw.substr(off[i], off[i + 1] - off[i]);
+            _types.push_back(char_type_t::NORMAL);
+            if (_punc.find(ch) != _punc.end()) {
+                _types.back() = char_type_t::PUNC;
+            }
+        }
+        return;
+    }
 public:
+    Lattice_Generator() {
+        _punc.insert(string("。")); _punc.insert(string("，"));
+        _punc.insert(string("？")); _punc.insert(string("！"));
+        _punc.insert(string("：")); _punc.insert(string("“"));
+        _punc.insert(string("”"));
+    }
+
     void gen(const string& raw, 
             const vector<size_t>& off, 
             const vector<span_t>& span,
             vector<linked_span_t>& lattice) {
 
         if (off.size() == 0) return;
+
+        _calc_type(raw, off);
+        
         size_t n = off.size() - 1;
 
         lattice.clear();
@@ -32,30 +63,12 @@ public:
             for (size_t j = i + 1; j < n + 1; j++) {
                 if (j - i > 10) break;
                 lattice.push_back(linked_span_t(i, j));
+                if (_types[i] == char_type_t::PUNC) break;
+                if (_types[j] == char_type_t::PUNC) break;
             }
         }
     }
 };
-
-void gen_lattice(const string& raw, 
-        const vector<size_t>& off, 
-        const vector<span_t>& span,
-        vector<linked_span_t>& lattice) {
-
-    if (off.size() == 0) return;
-    size_t n = off.size() - 1;
-
-    lattice.clear();
-    // generate all spans
-    for (size_t i = 0; i < n; i++) {
-        for (size_t j = i + 1; j < n + 1; j++) {
-            if (j - i > 10) break;
-            lattice.push_back(linked_span_t(i, j));
-        }
-    }
-}
-
-
 
 void find_path(const string& raw,
         const vector<size_t>& off,
@@ -148,6 +161,7 @@ int main() {
     Weight ave;
     Feature feature;
     Learner learner;
+    Lattice_Generator lg;
 
     auto dictionary = make_shared<Dictionary>();
     dictionary->load("tyc.dict");
@@ -162,7 +176,7 @@ int main() {
     for (size_t it = 0; it < 5; it ++) {
         feature.set_dict(model);
         for (size_t i = 0; i < raws.size(); i++) {
-            gen_lattice(raws[i], offs[i], spans[i], lattice);
+            lg.gen(raws[i], offs[i], spans[i], lattice);
             find_path(raws[i], offs[i], feature, lattice, output);
             gradient.clear();
             feature.calc_gradient(spans[i], output, gradient);
@@ -176,7 +190,7 @@ int main() {
         eval.reset();
         feature.set_dict(ave);
         for (size_t i = 0; i < test_raws.size(); i++) {
-            gen_lattice(test_raws[i], test_offs[i], test_spans[i], lattice);
+            lg.gen(test_raws[i], test_offs[i], test_spans[i], lattice);
             find_path(test_raws[i], test_offs[i], feature, lattice, output);
             eval.eval(test_spans[i], output);
         }
