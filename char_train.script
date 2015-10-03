@@ -1,0 +1,5 @@
+training_data train.seg
+test_data test.seg
+iteration 5
+train
+save model.txt

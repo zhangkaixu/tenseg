@@ -1,0 +1,3 @@
+load model.txt
+test_data test.seg
+test
