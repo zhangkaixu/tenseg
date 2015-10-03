@@ -4,10 +4,12 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <memory>
 #include "tenseg.h"
 #include "feature.h"
 #include "weight.h"
 #include "optimizer.h"
+#include "dictionary.h"
 
 using namespace std;
 
@@ -124,6 +126,11 @@ int main() {
     Weight ave;
     Feature feature;
     Learner learner;
+
+    auto dictionary = make_shared<Dictionary>();
+    dictionary->load("tyc.dict");
+
+    feature.set_dictionary(dictionary);
 
     Eval eval;
 

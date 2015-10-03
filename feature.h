@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <memory>
 #include "tenseg.h"
 #include "weight.h"
+#include "dictionary.h"
 
 namespace tenseg {
 
@@ -25,6 +27,8 @@ class Feature {
     /// char-based related
     vector<double> _transition;
     vector<double> _emission;
+    
+    shared_ptr<Dictionary> _dictionary;
 
     void _calc_emission(Weight& model, const string& raw,
             vector<double>& emission, bool update) {
@@ -121,6 +125,9 @@ public:
     void set_dict(Weight& dict) {
         _dict = &dict;
     }
+    void set_dictionary(shared_ptr<Dictionary> dictionary) {
+        _dictionary = dictionary;
+    }
 
     void prepare(
             const string& raw,
@@ -132,10 +139,35 @@ public:
         _calc_emission(*_dict, *_raw, _emission, false);
     }
 
+
+    double _unigram_dictionary_gradient(const span_t* span, Weight& gradient, double delta) {
+        if (!_dictionary) return 0;
+        string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
+        if (!_dictionary->get(key, key)) return 0;
+        key = string("dic:") + key;
+        gradient.add_from(key, &delta, 1);
+    }
+
+    double unigram_dictionary(const span_t* span) {
+        if (!_dictionary) return 0;
+
+        string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
+        
+        if (!_dictionary->get(key, key)) return 0;
+
+        key = string("dic:") + key;
+        double* value = _dict->get(key);
+
+        if (!value) return 0;
+
+        return *value;
+    }
+
     void calc_gradient(
             vector<span_t>& gold, 
             vector<span_t>& output, 
             Weight& gradient) {
+        /// character based
         _emission.clear();
         for (size_t i = 0; i < (N * gold.back().end); i++) {
             _emission.push_back(0);
@@ -148,9 +180,19 @@ public:
         }
 
         _calc_emission(gradient, *_raw, _emission, true);
+
+        /// dictionary based
+        for (size_t i = 0; i < gold.size(); i++) {
+            _unigram_dictionary_gradient(&gold[i], gradient, 1);
+        }
+        for (size_t i = 0; i < output.size(); i++) {
+            _unigram_dictionary_gradient(&output[i], gradient, -1);
+        }
     }
 
-
+    /**
+     * interface to calc unigram scores
+     * */
     double unigram(size_t uni) {
         const linked_span_t& span = (*_lattice)[uni];
         double score = 0;
@@ -165,9 +207,18 @@ public:
             }
             score += _emission[(span.end - 1) * N + 2];
         }
+
+        /// word-based features
+        
+        /// dict-based
+        score += unigram_dictionary(&span);
+
         return score;
     }
 
+    /**
+     * interface to calc bigram scores
+     * */
     double bigram(size_t first, size_t second) {
         return 0;
     }

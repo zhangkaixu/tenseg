@@ -14,9 +14,9 @@ using std::vector;
 
 class Weight {
 private:
-    vector<double> _data;
-    vector<size_t> _ends;
     map<string, size_t> _map;
+    vector<size_t> _ends;
+    vector<double> _data;
 public:
     void clear() {
         _data.clear();
@@ -41,7 +41,6 @@ public:
                 iss >> v;
                 vec.push_back(v);
             }
-            //printf("%s %lu\n", str.c_str(), vec.size());
             this->add_from(str, &(vec[0]), vec.size());
         }
     }

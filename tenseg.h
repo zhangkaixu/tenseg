@@ -90,7 +90,7 @@ public:
         double f = 2 * p * r / (p + r);
         _end_time = std::clock();
         std::cout << _end_time << " ";
-        printf("%lu %lu %lu %.3g %.3g %.3g %.3g\n", _std, _rst, _cor,
+        printf("%lu %lu %lu %.3g %.3g \033[40;32m%.5g\033[0m %.3g(sec.)\n", _std, _rst, _cor,
                 p, r, f, ((double)(_end_time - _start_time) / CLOCKS_PER_SEC)
                 );
     }
