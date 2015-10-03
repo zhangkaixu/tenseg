@@ -15,6 +15,28 @@ using namespace std;
 
 using namespace tenseg;
 
+
+class Lattice_Generator {
+public:
+    void gen(const string& raw, 
+            const vector<size_t>& off, 
+            const vector<span_t>& span,
+            vector<linked_span_t>& lattice) {
+
+        if (off.size() == 0) return;
+        size_t n = off.size() - 1;
+
+        lattice.clear();
+        // generate all spans
+        for (size_t i = 0; i < n; i++) {
+            for (size_t j = i + 1; j < n + 1; j++) {
+                if (j - i > 10) break;
+                lattice.push_back(linked_span_t(i, j));
+            }
+        }
+    }
+};
+
 void gen_lattice(const string& raw, 
         const vector<size_t>& off, 
         const vector<span_t>& span,
