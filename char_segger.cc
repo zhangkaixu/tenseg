@@ -370,8 +370,16 @@ void shell() {
     }
 }
 
+void print_help_info(const char* argv[]) {
+    fprintf(stderr, "A character-based Chinese word segmentor\n");
+    fprintf(stderr, "    by Zhang, Kaixu (zhangkaixu@hotmail.com)\n");
+    fprintf(stderr, "shell like interface: %s\n", argv[0]);
+    fprintf(stderr, "segment by providing a model file: %s modelfile < inputfile > outputfile\n", argv[0]);
+}
+
 int main(int argc, const char *argv[])
 {
+    print_help_info(argv);
     if (argc > 2) {
         if (argv[1][0] == 'v') {
             do_viterbi(argv[2]);
@@ -383,6 +391,7 @@ int main(int argc, const char *argv[])
     if (argc > 1) {
         predict(argv[1]);
     }
+
     shell();
 
     return 0;
