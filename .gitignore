@@ -26,3 +26,7 @@
 *.exe
 *.out
 *.app
+
+*.swp
+char_segger
+word_segger

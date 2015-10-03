@@ -3,9 +3,9 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include "dict.h"
-#include "searcher.h"
-#include "eval.h"
+#include "char_dict.h"
+#include "char_searcher.h"
+#include "char_eval.h"
 
 using std::string;
 using std::vector;
