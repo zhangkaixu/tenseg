@@ -167,6 +167,22 @@ public:
             vector<span_t>& gold, 
             vector<span_t>& output, 
             Weight& gradient) {
+        /// is eaual
+        if (gold.size() == output.size()) {
+            bool is_equal = true;
+            for (size_t i = 0; i < gold.size(); i++) {
+                if (gold[i].begin != output[i].begin) {
+                    is_equal = false;
+                    break;
+                }
+            }
+            if (is_equal) {
+                return;
+            }
+        }
+
+
+
         /// character based
         _emission.clear();
         for (size_t i = 0; i < (N * gold.back().end); i++) {

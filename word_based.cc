@@ -192,6 +192,7 @@ int main() {
             lg.gen(raws[i], offs[i], spans[i], lattice);
             pf.find_path(raws[i], offs[i], feature, lattice, output);
             gradient.clear();
+
             feature.calc_gradient(spans[i], output, gradient);
             learner.update(model, gradient);
 
