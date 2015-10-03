@@ -11,6 +11,10 @@
 namespace tenseg {
 using namespace std;
 
+/**
+ * decl
+ * */
+
 struct span_t {
     size_t begin;
     size_t end;
