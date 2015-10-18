@@ -6,9 +6,9 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include "tenseg.h"
-#include "weight.h"
-#include "dictionary.h"
+#include "common/common.h"
+#include "common/weight.h"
+#include "common/dictionary.h"
 
 namespace tenseg {
 

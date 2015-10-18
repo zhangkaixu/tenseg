@@ -6,7 +6,7 @@
 #include <set>
 #include <vector>
 #include <memory>
-#include "common/tenseg.h"
+#include "common/common.h"
 #include "common/feature.h"
 #include "common/weight.h"
 #include "common/optimizer.h"

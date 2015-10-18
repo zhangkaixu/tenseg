@@ -17,15 +17,15 @@ endif()
 SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 
-#include_directories("${PROJECT_BINARY_DIR}")
 
-SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I ${PROJECT_SOURCE_DIR}/src")
+#SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I ${PROJECT_SOURCE_DIR}/src")
 SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 set (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
 set (SOURCE_DIR             ${PROJECT_SOURCE_DIR}/src)
 
+include_directories("${SOURCE_DIR}")
 # add the executable
 add_executable(char_segger ${SOURCE_DIR}/char_segger/char_segger.cc)
 add_executable(word_segger ${SOURCE_DIR}/segger/word_based.cc)
