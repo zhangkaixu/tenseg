@@ -18,6 +18,11 @@ SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 #include_directories("${PROJECT_BINARY_DIR}")
  
+
+set (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
+
+set (SOURCE_DIR             ${PROJECT_SOURCE_DIR}/src)
+
 # add the executable
 add_executable(char_segger char_segger.cc)
 add_executable(word_segger word_based.cc)

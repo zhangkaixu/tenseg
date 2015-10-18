@@ -35,4 +35,5 @@ CMakeFiles
 *.cmake
 CMakeCache.txt
 Makefile
+bin
 build
