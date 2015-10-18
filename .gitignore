@@ -30,3 +30,9 @@
 *.swp
 char_segger
 word_segger
+
+CMakeFiles
+*.cmake
+CMakeLists.txt
+CMakeCache.txt
+Makefile
