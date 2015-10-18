@@ -28,6 +28,8 @@ class Feature {
     /// char-based related
     vector<double> _transition;
     vector<double> _emission;
+
+    shared_ptr<Indexer<string>> _tag_indexer;
     
     shared_ptr<Dictionary> _dictionary;
 
@@ -44,7 +46,7 @@ class Feature {
 
         if (!update) {
             emission.clear();
-            for (size_t i = 0; i < N * (begins.size() - 1); i ++) {
+            for (size_t i = 0; i < N * tagset_size() * (begins.size() - 1); i ++) {
                 emission.push_back(0);
             }
         }
@@ -63,15 +65,15 @@ class Feature {
                 if (update == false) {
                     continue;
                 } else {
-                    model.insert(uni, (n + 2) * N);
+                    model.insert(uni, (n + 2) * N * tagset_size());
                     m = model.get(uni);
                 }
             };
 
-            for (int j = 0; j < (2 + n) * N; j++) {
-                int off = ((int)i - 1) * N + j;
+            for (int j = 0; j < (2 + n) * N * tagset_size(); j++) {
+                int off = ((int)i - 1) * N * tagset_size() + j;
                 if (off < 0) continue;
-                if (off >= (begins.size() - 1) * N) continue;
+                if (off >= (begins.size() - 1) * N * tagset_size()) continue;
                 if (update == false) {
                     emission[off] += m[j];
                 } else {
@@ -91,15 +93,15 @@ class Feature {
                     if (update == false) {
                         continue;
                     } else {
-                        model.insert(uni, (n + 2) * N);
+                        model.insert(uni, (n + 2) * N * tagset_size());
                         m = model.get(uni);
                     }
                 };
 
-                for (int j = 0; j < (2 + n) * N; j++) {
-                    int off = ((int)i - 1) * N + j;
+                for (int j = 0; j < (2 + n) * N * tagset_size(); j++) {
+                    int off = ((int)i - 1) * N * tagset_size() + j;
                     if (off < 0) continue;
-                    if (off >= (begins.size() - 1) * N) continue;
+                    if (off >= (begins.size() - 1) * N * tagset_size()) continue;
                     if (update == false) {
                         emission[off] += m[j];
                     } else {
@@ -109,19 +111,30 @@ class Feature {
             }
         }
     }
-    void _update_span_emi(span_t& span, double delta) {
+    void _update_span_emi(SPAN& span, double delta) {
         if (span.end - span.begin == 1) {
-            _emission[span.begin * N + 3] += delta;
+            _emission[span.begin * N * tagset_size() + 3] += delta;
         } else {
-            _emission[span.begin * N + 0] += delta;
+            _emission[span.begin * N * tagset_size() + 0] += delta;
             for (size_t i = span.begin + 1; i < span.end - 1; i++) {
-                _emission[i * N + 1] += delta;
+                _emission[i * N * tagset_size() + 1] += delta;
             }
-            _emission[(span.end - 1) * N + 2] += delta;
+            _emission[(span.end - 1) * N * tagset_size() + 2] += delta;
         }
     }
 public:
     Feature() {};
+
+    void set_tag_indexer(shared_ptr<Indexer<string>> tag_indexer) {
+        _tag_indexer = tag_indexer;
+    }
+
+    size_t tagset_size() const {
+        if (_tag_indexer) {
+            return _tag_indexer->size();
+        }
+        return 1;
+    }
 
     void set_dict(Weight& dict) {
         _dict = &dict;
@@ -141,7 +154,7 @@ public:
     }
 
 
-    double _unigram_dictionary_gradient(const span_t* span, Weight& gradient, double delta) {
+    double _unigram_dictionary_gradient(const SPAN* span, Weight& gradient, double delta) {
         if (!_dictionary) return 0;
         string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
         if (!_dictionary->get(key, key)) return 0;
@@ -149,7 +162,7 @@ public:
         gradient.add_from(key, &delta, 1);
     }
 
-    double unigram_dictionary(const span_t* span) {
+    double unigram_dictionary(const SPAN* span) {
         if (!_dictionary) return 0;
 
         string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
@@ -165,8 +178,8 @@ public:
     }
 
     void calc_gradient(
-            vector<span_t>& gold, 
-            vector<span_t>& output, 
+            vector<SPAN>& gold, 
+            vector<SPAN>& output, 
             Weight& gradient) {
         /// is eaual
         if (gold.size() == output.size()) {
@@ -186,7 +199,7 @@ public:
 
         /// character based
         _emission.clear();
-        for (size_t i = 0; i < (N * gold.back().end); i++) {
+        for (size_t i = 0; i < (N * tagset_size() * gold.back().end); i++) {
             _emission.push_back(0);
         }
         for (size_t i = 0; i < gold.size(); i++) {
@@ -216,13 +229,13 @@ public:
 
         /// char-based features
         if (span.end - span.begin == 1) { // S
-            score += _emission[span.begin * N + 3];
+            score += _emission[span.begin * N * tagset_size() + 3];
         } else { // BM*E
-            score += _emission[span.begin * N + 0];
+            score += _emission[span.begin * N * tagset_size() + 0];
             for (size_t i = span.begin + 1; i < span.end - 1; i++) {
-                score += _emission[i * N + 1];
+                score += _emission[i * N * tagset_size() + 1];
             }
-            score += _emission[(span.end - 1) * N + 2];
+            score += _emission[(span.end - 1) * N * tagset_size() + 2];
         }
 
         /// word-based features

@@ -29,3 +29,4 @@ include_directories("${SOURCE_DIR}")
 # add the executable
 add_executable(char_segger ${SOURCE_DIR}/char_segger/char_segger.cc)
 add_executable(word_segger ${SOURCE_DIR}/segger/word_based.cc)
+add_executable(tagger ${SOURCE_DIR}/tagger/tagger.cc)

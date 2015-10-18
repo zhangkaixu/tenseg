@@ -185,7 +185,7 @@ int main() {
 
     feature.set_dictionary(dictionary);
 
-    Eval eval;
+    Eval<span_t> eval;
 
     vector<span_t> lattice;
     vector<span_t> output;

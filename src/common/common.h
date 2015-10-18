@@ -6,6 +6,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <map>
 #include <ctime>
 
 namespace tenseg {
@@ -18,6 +19,8 @@ using namespace std;
 struct span_t {
     size_t begin;
     size_t end;
+    //size_t label;
+    span_t() : begin(0), end(0) {};
     span_t(size_t b, size_t e) : begin(b), end(e) {
     }
     template <class T>
@@ -26,13 +29,34 @@ struct span_t {
         end = ref.end;
     }
 
-    //span_t(const char* s, size_t l, size_t b) : begin(b), end(b+l) {
-    //}
-
     span_t(std::string& str, size_t& offset, vector<char>& raw) {
         begin = offset;
         for (size_t i = 0; i < str.size(); i++) {
             const char& c = str[i];
+            raw.push_back(c);
+            if ((0xc0 == (c & 0xc0))
+                    || !(c & 0x80)) {
+                offset++;
+            }
+        }
+        end = offset;
+    }
+};
+
+struct labelled_span_t : public span_t {
+    string label;
+
+    labelled_span_t(size_t b, size_t e) : span_t(b, e), label(string()){};
+    labelled_span_t(size_t b, size_t e, string& l) : span_t(b, e), label(l){};
+
+    labelled_span_t(std::string& str, size_t& offset, vector<char>& raw) {
+        begin = offset;
+        for (size_t i = 0; i < str.size(); i++) {
+            const char& c = str[i];
+            if (c == '_') {
+                label = str.substr(i + 1);
+                break;
+            }
             raw.push_back(c);
             if ((0xc0 == (c & 0xc0))
                     || !(c & 0x80)) {
@@ -51,7 +75,8 @@ struct span_t {
 //    size_t pointer;
 //};
 
-class Eval;
+
+//class Eval;
 void load_corpus( const string& filename,
         vector<string>& raws, vector<vector<size_t>>& offs, vector<vector<span_t>>& spans);
 
@@ -59,6 +84,7 @@ void load_corpus( const string& filename,
 
 /// implementations
 
+template <class SPAN>
 class Eval {
 private:
     size_t _std;
@@ -76,7 +102,7 @@ public:
     Eval() {
         reset();
     }
-    void eval(vector<span_t>& gold, vector<span_t>& output) {
+    void eval(vector<SPAN>& gold, vector<SPAN>& output) {
         _std += gold.size();
         _rst += output.size();
 
@@ -176,5 +202,26 @@ void load(
     }
 };
 
+template <class T>
+class Indexer {
+public:
+    Indexer() {}
+    size_t get(const T& ref) {
+        auto ret = index_.find(ref);
+        if (ret == index_.end()) {
+            size_t ind = index_.size();
+            index_[ref] = ind;
+            list_.push_back(ref);
+            return ind;
+        }
+        return ret->second;
+    }
+    size_t size() const {
+        return index_.size();
+    }
+private:
+    map<T, size_t> index_;
+    vector<T> list_;
+};
 
 }
