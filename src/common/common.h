@@ -19,15 +19,23 @@ struct span_t {
     size_t end;
     span_t(size_t b, size_t e) : begin(b), end(e) {
     }
+    template <class T>
+    span_t(const T& ref) {
+        begin = ref.begin;
+        end = ref.end;
+    }
+
+    span_t(const char* s, size_t l, size_t b) : begin(b), end(b+l) {
+    }
 };
 
-struct linked_span_t : public span_t {
-    linked_span_t(size_t b, size_t e) :
-        span_t(b, e), score(0), pointer(0)
-    {};
-    double score;
-    size_t pointer;
-};
+//struct linked_span_t : public span_t {
+//    linked_span_t(size_t b, size_t e) :
+//        span_t(b, e), score(0), pointer(0)
+//    {};
+//    double score;
+//    size_t pointer;
+//};
 
 class Eval;
 void load_corpus( const string& filename,
@@ -102,19 +110,20 @@ public:
 /**
  * load corpus from a segmented file
  * */
+template<class SPAN>
 void load_corpus(
         const string& filename,
         vector<string>& raws,
         vector<vector<size_t>>& offs,
-        vector<vector<span_t>>& spans
+        vector<vector<SPAN>>& spans
         ){
 
     std::ifstream input(filename);
     for (std::string line; std::getline(input, line); ) {
         offs.push_back(vector<size_t>());
         vector<size_t>& off = offs.back();
-        spans.push_back(vector<span_t>());
-        vector<span_t>& span = spans.back();
+        spans.push_back(vector<SPAN>());
+        vector<SPAN>& span = spans.back();
         vector<char> word_buffer;
         vector<size_t> tag;
         int cn = 0;
@@ -127,9 +136,9 @@ void load_corpus(
             if (c == 32) {
                 space_n++;
                 end = begin + cn;
-                span.push_back(span_t(begin, end));
+                span.push_back(SPAN(begin, end));
                 cn = 0;
-                begin = end;
+                begin = span.back().end;
             } else if ((0xc0 == (c & 0xc0))
                     || !(c & 0x80) ) { // first char
                 off.push_back(i - space_n);
@@ -141,7 +150,7 @@ void load_corpus(
         }
         off.push_back(i - space_n);
         end = begin + cn;
-        span.push_back(span_t(begin, end));
+        span.push_back(SPAN(begin, end));
 
         word_buffer.push_back(0);
         raws.push_back(string(&(word_buffer[0])));

@@ -13,14 +13,15 @@
 namespace tenseg {
 
 using namespace std;
-class Feature;
+//class Feature;
 
+template<class SPAN>
 class Feature {
     const size_t N = 4;
 
     const string* _raw;
     const vector<size_t>* _off;
-    const vector<linked_span_t>* _lattice;
+    const vector<SPAN>* _lattice;
 
     /// features
     Weight* _dict;
@@ -132,7 +133,7 @@ public:
     void prepare(
             const string& raw,
             const vector<size_t>& off,
-            const vector<linked_span_t>& lattice) {
+            const vector<SPAN>& lattice) {
         _lattice = &lattice;
         _off = &off;
         _raw = &raw;
@@ -210,7 +211,7 @@ public:
      * interface to calc unigram scores
      * */
     double unigram(size_t uni) {
-        const linked_span_t& span = (*_lattice)[uni];
+        const SPAN& span = (*_lattice)[uni];
         double score = 0;
 
         /// char-based features

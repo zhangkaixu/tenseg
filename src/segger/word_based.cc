@@ -48,7 +48,7 @@ public:
     void gen(const string& raw, 
             const vector<size_t>& off, 
             const vector<span_t>& span,
-            vector<linked_span_t>& lattice) {
+            vector<span_t>& lattice) {
 
         if (off.size() == 0) return;
 
@@ -61,7 +61,7 @@ public:
         for (size_t i = 0; i < n; i++) {
             for (size_t j = i + 1; j < n + 1; j++) {
                 if (j - i > 10) break;
-                lattice.push_back(linked_span_t(i, j));
+                lattice.push_back(span_t(i, j));
                 if (_types[i] == char_type_t::PUNC) break;
                 if (_types[j] == char_type_t::PUNC) break;
             }
@@ -75,44 +75,50 @@ private:
     vector<vector<size_t>> begins;
     vector<vector<size_t>> ends;
 
+    vector<double> scores_;
+    vector<size_t> pointers_;
+
 public:
     PathFinder() {
     }
 
+    template <class SPAN, class FEATURE>
     void find_path(const string& raw,
             const vector<size_t>& off,
-            Feature& feature,
-            vector<linked_span_t>& lattice,
-            vector<span_t>& output
+            FEATURE& feature,
+            const vector<SPAN>& lattice,
+            vector<SPAN>& output
             ) {
         
         feature.prepare(raw, off, lattice);
 
         /// Step 1 prepare path
-        //
         while (begins.size() < off.size()) { begins.push_back(vector<size_t>()); }
         while (ends.size() < off.size()) { ends.push_back(vector<size_t>()); }
         for (size_t i = 0; i < off.size(); i++) {
             begins[i].clear(); ends[i].clear();
         }
 
+        scores_.clear();
+        pointers_.clear();
         for (size_t i = 0; i < lattice.size(); i++) {
             ends[lattice[i].end].push_back(i);
             begins[lattice[i].begin].push_back(i);
+
+            scores_.push_back(0);
+            pointers_.push_back(0);
         }
 
         /// Step 2 search
         for (size_t i = 0; i < off.size() - 1; i++) {
             for (size_t k = 0; k < begins[i].size(); k++) {
-                linked_span_t& this_span = lattice[begins[i][k]];
-
-                double max_score = 0;
-                size_t max_pointer = 0;
+                double& max_score = scores_[begins[i][k]];
+                size_t& max_pointer = pointers_[begins[i][k]];
                 bool has_max = false;
                 for (size_t j = 0; j < ends[i].size(); j ++) {
                     double score = 0;
                     size_t p = ends[i][j];
-                    score = lattice[p].score;
+                    score = scores_[p];
                     score += feature.bigram(ends[i][j], begins[i][k]);
                     /// bigram features
                     if (!has_max || max_score < score) {
@@ -122,9 +128,7 @@ public:
                     }
                 }
                 /// unigram features
-                this_span.score = max_score;
-                this_span.score += feature.unigram(begins[i][k]);
-                this_span.pointer = max_pointer;
+                max_score += feature.unigram(begins[i][k]);
             }
         }
 
@@ -135,7 +139,7 @@ public:
         for (size_t j = 0; j < ends[off.size() - 1].size(); j ++) {
             double score = 0;
             size_t p = ends[off.size() - 1][j];
-            score = lattice[p].score;
+            score = scores_[p];
             if (!has_max || max_score < score) {
                 has_max = true;
                 max_score = score;
@@ -145,10 +149,10 @@ public:
 
         output.clear();
         while (true) {
-            output.push_back(span_t(lattice[max_pointer].begin, 
-                    lattice[max_pointer].end));
+            output.push_back(SPAN(lattice[max_pointer]));
             if (lattice[max_pointer].begin == 0) break;
-            max_pointer = lattice[max_pointer].pointer;
+
+            max_pointer = pointers_[max_pointer];
         }
         reverse(output.begin(), output.end());
     }
@@ -162,16 +166,16 @@ int main() {
     vector<string> raws;
     vector<vector<size_t>> offs;
     vector<vector<span_t>> spans;
-    load_corpus(string("train.seg"), raws, offs, spans);
+    load_corpus<span_t>(string("train.seg"), raws, offs, spans);
 
     vector<string> test_raws;
     vector<vector<size_t>> test_offs;
     vector<vector<span_t>> test_spans;
-    load_corpus(string("test.seg"), test_raws, test_offs, test_spans);
+    load_corpus<span_t>(string("test.seg"), test_raws, test_offs, test_spans);
 
     Weight model;
     Weight ave;
-    Feature feature;
+    Feature<span_t> feature;
     Learner learner;
     Lattice_Generator lg;
     PathFinder pf;
@@ -183,7 +187,7 @@ int main() {
 
     Eval eval;
 
-    vector<linked_span_t> lattice;
+    vector<span_t> lattice;
     vector<span_t> output;
     Weight gradient;
     for (size_t it = 0; it < 5; it ++) {
