@@ -24,5 +24,5 @@ set (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set (SOURCE_DIR             ${PROJECT_SOURCE_DIR}/src)
 
 # add the executable
-add_executable(char_segger char_segger.cc)
-add_executable(word_segger word_based.cc)
+add_executable(char_segger ${SOURCE_DIR}/char_segger.cc)
+add_executable(word_segger ${SOURCE_DIR}/word_based.cc)
