@@ -33,6 +33,6 @@ word_segger
 
 CMakeFiles
 *.cmake
-CMakeLists.txt
 CMakeCache.txt
 Makefile
+build

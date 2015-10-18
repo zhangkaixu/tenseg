@@ -1,6 +1,7 @@
 #pragma once
 #include <ctime>
 namespace tenseg{
+
 class Eval {
 private:
     size_t _std;

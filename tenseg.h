@@ -7,7 +7,6 @@
 #include <vector>
 #include <ctime>
 
-
 namespace tenseg {
 using namespace std;
 
