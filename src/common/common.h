@@ -4,6 +4,7 @@
 #include <fstream>
 #include <algorithm>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <ctime>
 
@@ -25,7 +26,20 @@ struct span_t {
         end = ref.end;
     }
 
-    span_t(const char* s, size_t l, size_t b) : begin(b), end(b+l) {
+    //span_t(const char* s, size_t l, size_t b) : begin(b), end(b+l) {
+    //}
+
+    span_t(std::string& str, size_t& offset, vector<char>& raw) {
+        begin = offset;
+        for (size_t i = 0; i < str.size(); i++) {
+            const char& c = str[i];
+            raw.push_back(c);
+            if ((0xc0 == (c & 0xc0))
+                    || !(c & 0x80)) {
+                offset++;
+            }
+        }
+        end = offset;
     }
 };
 
@@ -100,61 +114,67 @@ public:
         double r = 1.0 * _cor / _std;
         double f = 2 * p * r / (p + r);
         _end_time = std::clock();
-        std::cout << _end_time << " ";
+        //std::cout << _end_time << " ";
         printf("%lu %lu %lu %.3g %.3g \033[40;32m%.5g\033[0m %.3g(sec.)\n", _std, _rst, _cor,
                 p, r, f, ((double)(_end_time - _start_time) / CLOCKS_PER_SEC)
                 );
     }
 };
 
+span_t parse_item(std::string& str, size_t& offset, vector<unsigned char>& raw) {
+    span_t span(offset, offset + str.size());
+    offset += str.size();
+    return span;
+}
+
 /**
  * load corpus from a segmented file
  * */
 template<class SPAN>
-void load_corpus(
+void load(
         const string& filename,
         vector<string>& raws,
         vector<vector<size_t>>& offs,
-        vector<vector<SPAN>>& spans
+        vector<vector<SPAN>>& corpus
         ){
 
     std::ifstream input(filename);
+    
     for (std::string line; std::getline(input, line); ) {
+        corpus.push_back(vector<SPAN>());
+        vector<SPAN>& sent = corpus.back();
+
+        size_t offset = 0;
+        std::istringstream iss(line);
+        std::string item;
+        vector<char> raw;
+        while (!iss.eof()) {
+            iss >> item;
+            //cout<<"["<<item<<"]\n";
+            sent.push_back(SPAN(item, offset, raw));
+        }
+
         offs.push_back(vector<size_t>());
         vector<size_t>& off = offs.back();
-        spans.push_back(vector<SPAN>());
-        vector<SPAN>& span = spans.back();
-        vector<char> word_buffer;
-        vector<size_t> tag;
-        int cn = 0;
-        size_t i = 0;
-        size_t begin = 0;
-        size_t end = 0;
-        size_t space_n = 0;
-        for (; i < line.size(); i++) {
-            char c = line.c_str()[i];
-            if (c == 32) {
-                space_n++;
-                end = begin + cn;
-                span.push_back(SPAN(begin, end));
-                cn = 0;
-                begin = span.back().end;
-            } else if ((0xc0 == (c & 0xc0))
-                    || !(c & 0x80) ) { // first char
-                off.push_back(i - space_n);
-                word_buffer.push_back(c);
-                cn ++;
-            } else {
-                word_buffer.push_back(c);
+        for (size_t i = 0; i < raw.size(); i++) {
+            const char& c = raw[i];
+            if ((0xc0 == (c & 0xc0))
+                    || !(c & 0x80)) {
+                off.push_back(i);
             }
         }
-        off.push_back(i - space_n);
-        end = begin + cn;
-        span.push_back(SPAN(begin, end));
+        off.push_back(raw.size());
 
-        word_buffer.push_back(0);
-        raws.push_back(string(&(word_buffer[0])));
+        raw.push_back(0);
+        raws.push_back(string(&raw[0]));
+
+        //printf("%lu %s\n", raws.back().size(), raws.back().c_str());
+        //for (size_t i = 0; i < off.size(); i++) {
+        //    printf(" %lu", off[i]);
+        //}printf("\n");
+
     }
 };
+
 
 }

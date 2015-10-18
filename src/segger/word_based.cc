@@ -166,12 +166,12 @@ int main() {
     vector<string> raws;
     vector<vector<size_t>> offs;
     vector<vector<span_t>> spans;
-    load_corpus<span_t>(string("train.seg"), raws, offs, spans);
+    load<span_t>(string("train.seg"), raws, offs, spans);
 
     vector<string> test_raws;
     vector<vector<size_t>> test_offs;
     vector<vector<span_t>> test_spans;
-    load_corpus<span_t>(string("test.seg"), test_raws, test_offs, test_spans);
+    load<span_t>(string("test.seg"), test_raws, test_offs, test_spans);
 
     Weight model;
     Weight ave;
