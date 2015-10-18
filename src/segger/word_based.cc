@@ -6,11 +6,11 @@
 #include <set>
 #include <vector>
 #include <memory>
-#include "tenseg.h"
-#include "feature.h"
-#include "weight.h"
-#include "optimizer.h"
-#include "dictionary.h"
+#include "common/tenseg.h"
+#include "common/feature.h"
+#include "common/weight.h"
+#include "common/optimizer.h"
+#include "common/dictionary.h"
 
 using namespace std;
 
