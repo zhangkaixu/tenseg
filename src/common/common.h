@@ -29,6 +29,11 @@ struct span_t {
         end = ref.end;
     }
 
+    static const string default_label;
+    const string& label() const{
+        return default_label;
+    }
+
     span_t(std::string& str, size_t& offset, vector<char>& raw) {
         begin = offset;
         for (size_t i = 0; i < str.size(); i++) {
@@ -41,20 +46,28 @@ struct span_t {
         }
         end = offset;
     }
+    bool operator==(span_t& other)const {
+        if (begin != other.begin) return false;
+        if (end != other.end) return false;
+        return true;
+    }
 };
 
 struct labelled_span_t : public span_t {
-    string label;
+    string label_;
 
-    labelled_span_t(size_t b, size_t e) : span_t(b, e), label(string()){};
-    labelled_span_t(size_t b, size_t e, string& l) : span_t(b, e), label(l){};
+    labelled_span_t(size_t b, size_t e) : span_t(b, e), label_(string()){};
+    labelled_span_t(size_t b, size_t e, string& l) : span_t(b, e), label_(l){};
 
+    const string& label() const{
+        return label_;
+    }
     labelled_span_t(std::string& str, size_t& offset, vector<char>& raw) {
         begin = offset;
         for (size_t i = 0; i < str.size(); i++) {
             const char& c = str[i];
             if (c == '_') {
-                label = str.substr(i + 1);
+                label_ = str.substr(i + 1);
                 break;
             }
             raw.push_back(c);
@@ -64,6 +77,12 @@ struct labelled_span_t : public span_t {
             }
         }
         end = offset;
+    }
+    bool operator==(labelled_span_t& other)const {
+        if (begin != other.begin) return false;
+        if (end != other.end) return false;
+        if (label_ != other.label_) return false;
+        return true;
     }
 };
 
@@ -90,6 +109,7 @@ private:
     size_t _std;
     size_t _rst;
     size_t _cor;
+    size_t _label_cor;
     time_t _start_time;
     time_t _end_time;
 public:
@@ -97,6 +117,7 @@ public:
         _std = 0;
         _rst = 0;
         _cor = 0;
+        _label_cor = 0;
         _start_time = std::clock();
     }
     Eval() {
@@ -129,21 +150,34 @@ public:
                 continue;
             } else {
                 _cor += 1;
+                if (gold[ind_g] == output[ind_o]) {
+                    _label_cor += 1;
+                }
                 ind_o++;
                 ind_g++;
             }
         }
 
     }
+
+
     void report() {
         double p = 1.0 * _cor / _rst;
         double r = 1.0 * _cor / _std;
         double f = 2 * p * r / (p + r);
+        double lf = _get_f(_std, _rst, _label_cor);
         _end_time = std::clock();
         //std::cout << _end_time << " ";
-        printf("%lu %lu %lu %.3g %.3g \033[40;32m%.5g\033[0m %.3g(sec.)\n", _std, _rst, _cor,
-                p, r, f, ((double)(_end_time - _start_time) / CLOCKS_PER_SEC)
+        printf("%lu %lu %lu \033[40;32m%.5g %.5g\033[0m %.3g(sec.)\n", _std, _rst, _cor,
+                lf, f, ((double)(_end_time - _start_time) / CLOCKS_PER_SEC)
                 );
+    }
+private:
+    double _get_f(double std, double rst, double cor) {
+        double p = 1.0 * cor / rst;
+        double r = 1.0 * cor / std;
+        double f = 2 * p * r / (p + r);
+        return f;
     }
 };
 
@@ -215,6 +249,9 @@ public:
             return ind;
         }
         return ret->second;
+    }
+    string& operator[](size_t ind) {
+        return list_[ind];
     }
     size_t size() const {
         return index_.size();

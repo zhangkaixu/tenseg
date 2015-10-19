@@ -24,6 +24,7 @@ class Lattice_Generator {
     };
     set<string> _punc; ///< 标点符号集合
     vector<char_type_t> _types;
+    shared_ptr<Indexer<string>> _tag_indexer;
 
     void _calc_type(const string& raw,
             const vector<size_t>& off) {
@@ -45,6 +46,10 @@ public:
         _punc.insert(string("”"));
     }
 
+    void set_tag_indexer(shared_ptr<Indexer<string>> ti) {
+        _tag_indexer = ti;
+    }
+
     void gen(const string& raw, 
             const vector<size_t>& off, 
             const vector<labelled_span_t>& span,
@@ -61,7 +66,11 @@ public:
         for (size_t i = 0; i < n; i++) {
             for (size_t j = i + 1; j < n + 1; j++) {
                 if (j - i > 10) break;
-                lattice.push_back(labelled_span_t(i, j));
+
+                for (size_t k = 0; k < _tag_indexer->size(); k++) {
+                    lattice.push_back(labelled_span_t(i, j, (*_tag_indexer)[k]));
+                }
+
                 if (_types[i] == char_type_t::PUNC) break;
                 if (_types[j] == char_type_t::PUNC) break;
             }
@@ -176,7 +185,7 @@ int main() {
     auto tag_indexer = make_shared<Indexer<string>>();
     for (size_t i = 0; i < spans.size(); i++) {
         for (size_t j = 0; j < spans[i].size(); j++) {
-            tag_indexer->get(spans[i][j].label);
+            tag_indexer->get(spans[i][j].label());
         }
     }
     printf("%lu\n", tag_indexer->size());
@@ -184,10 +193,11 @@ int main() {
 
     Weight model;
     Weight ave;
-    Feature<labelled_span_t> feature;
+    LabelledFeature<labelled_span_t> feature;
     feature.set_tag_indexer(tag_indexer);
     Learner learner;
     Lattice_Generator lg;
+    lg.set_tag_indexer(tag_indexer);
     PathFinder pf;
 
     auto dictionary = make_shared<Dictionary>();
