@@ -200,10 +200,9 @@ int main() {
     lg.set_tag_indexer(tag_indexer);
     PathFinder pf;
 
-    auto dictionary = make_shared<Dictionary>();
-    dictionary->load("tyc.dict");
-
-    feature.set_dictionary(dictionary);
+    //auto dictionary = make_shared<Dictionary>();
+    //dictionary->load("tyc.dict");
+    //feature.set_dictionary(dictionary);
 
     Eval<labelled_span_t> eval;
 
