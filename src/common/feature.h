@@ -23,10 +23,12 @@ class LabelledFeature {
     const vector<size_t>* _off;
     const vector<SPAN>* _lattice;
 
+
     /// features
     Weight* _dict;
     /// char-based related
-    vector<double> _transition;
+    double* _transition_ptr;
+    vector<size_t> _labels;
     vector<double> _emission;
 
     shared_ptr<Indexer<string>> _tag_indexer;
@@ -124,7 +126,7 @@ class LabelledFeature {
         }
     }
 public:
-    LabelledFeature() {};
+    LabelledFeature() :_transition_ptr(nullptr) {};
 
     void set_tag_indexer(shared_ptr<Indexer<string>> tag_indexer) {
         _tag_indexer = tag_indexer;
@@ -151,7 +153,17 @@ public:
         _lattice = &lattice;
         _off = &off;
         _raw = &raw;
+        _transition_ptr = _dict->get("transition");
         _calc_emission(*_dict, *_raw, _emission, false);
+
+        _labels.clear();
+        for (size_t i = 0; i < lattice.size(); i++) {
+            const SPAN& span = lattice[i];
+            _labels.push_back(
+                        _tag_indexer->get(span.label()) * 2
+                        + ((span.end - span.begin == 1)?0:1)
+                    );
+        }
     }
 
 
@@ -182,6 +194,7 @@ public:
             vector<SPAN>& gold, 
             vector<SPAN>& output, 
             Weight& gradient) {
+        //
         /// is eaual
         if (gold.size() == output.size()) {
             bool is_equal = true;
@@ -217,6 +230,36 @@ public:
         for (size_t i = 0; i < output.size(); i++) {
             _unigram_dictionary_gradient(&output[i], gradient, -1);
         }
+
+        /// bigram
+        vector<double> g_trans;
+        for (size_t i = 0; i < 2 * _tag_indexer->size() * 2 * _tag_indexer->size(); i++) {
+            g_trans.push_back(0);
+        }
+        _update_g_trans(g_trans, gold, 1);
+        _update_g_trans(g_trans, output, -1);
+        gradient.add_from("transition", &g_trans[0], g_trans.size());
+    }
+
+    inline size_t _trans_ind(size_t a, size_t b){
+        return _labels[a] * 2 * _tag_indexer->size() + _labels[b];
+    }
+
+    inline size_t _trans_ind(const SPAN& span_a, const SPAN& span_b){
+        size_t i_a =_tag_indexer->get(span_a.label()) * 2 
+            + ((span_a.end - span_a.begin == 1)?0:1);
+        size_t i_b =_tag_indexer->get(span_b.label()) * 2 
+            + ((span_b.end - span_b.begin == 1)?0:1);
+        return i_a * 2 * _tag_indexer->size() + i_b;
+    }
+
+    void _update_g_trans(vector<double>& g_trans, vector<SPAN>& seq, double delta) {
+        for (size_t i = 0; i < seq.size() - 1; i++) {
+            SPAN& span_a = seq[i];
+            SPAN& span_b = seq[i + 1];
+
+            g_trans[_trans_ind(span_a, span_b)] += delta;
+        }
     }
 
     /**
@@ -242,15 +285,16 @@ public:
         
         /// dict-based
         score += unigram_dictionary(&span);
-
         return score;
     }
 
     /**
      * interface to calc bigram scores
      * */
-    double bigram(size_t first, size_t second) {
-        return 0;
+    inline double bigram(size_t first, size_t second) {
+        double* ptr = _transition_ptr;
+        if (ptr == nullptr) return 0;
+        return ptr[_trans_ind(first, second)];
     }
 };
 

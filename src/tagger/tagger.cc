@@ -173,7 +173,7 @@ int main() {
     vector<string> raws;
     vector<vector<size_t>> offs;
     vector<vector<labelled_span_t>> spans;
-    load<labelled_span_t>(string("train.tag"), raws, offs, spans);
+    load<labelled_span_t>(string("dev.tag"), raws, offs, spans);
 
     vector<string> test_raws;
     vector<vector<size_t>> test_offs;
@@ -200,9 +200,9 @@ int main() {
     lg.set_tag_indexer(tag_indexer);
     PathFinder pf;
 
-    //auto dictionary = make_shared<Dictionary>();
-    //dictionary->load("tyc.dict");
-    //feature.set_dictionary(dictionary);
+    auto dictionary = make_shared<Dictionary>();
+    dictionary->load("tyc.dict");
+    feature.set_dictionary(dictionary);
 
     Eval<labelled_span_t> eval;
 
@@ -212,7 +212,10 @@ int main() {
     size_t iterations = 5;
     for (size_t it = 0; it < iterations; it ++) {
         feature.set_dict(model);
+        eval.reset();
         for (size_t i = 0; i < raws.size(); i++) {
+            //printf("%s\n", raws[i].c_str());
+            //fprintf(stderr, "[%lu/%lu]\n", i, raws.size());
             if (i % 100 == 0) {
                 fprintf(stderr, "[%lu/%lu]\r", i, raws.size());
             }
