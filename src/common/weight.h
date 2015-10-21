@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <algorithm>
 /**
  * a dict of {string : [double]}
  * */
@@ -145,6 +146,11 @@ public:
             double* ptr;
             size_t len;
             other.get(it->first, ptr, len);
+            /// if all zero, do nothing
+            /// this is especially helpful for memory-saving
+            if (std::all_of(ptr, ptr+len, [](double x){return x==0;})) {
+                continue;
+            }
             this->add_from(it->first, ptr, len, eta);
         }
     }

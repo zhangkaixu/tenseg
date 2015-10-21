@@ -1,2 +1,5 @@
 #!/bin/sh
+#
+# use `./configure -DCMAKE_BUILD_TYPE=Debug` to enable the debug mode
+#
 (cmake . "$@")

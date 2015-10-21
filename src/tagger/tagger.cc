@@ -72,7 +72,7 @@ public:
                 }
 
                 if (_types[i] == char_type_t::PUNC) break;
-                if (_types[j] == char_type_t::PUNC) break;
+                if (j < n && _types[j] == char_type_t::PUNC) break;
             }
         }
     }
@@ -209,9 +209,13 @@ int main() {
     vector<labelled_span_t> lattice;
     vector<labelled_span_t> output;
     Weight gradient;
-    for (size_t it = 0; it < 5; it ++) {
+    size_t iterations = 5;
+    for (size_t it = 0; it < iterations; it ++) {
         feature.set_dict(model);
         for (size_t i = 0; i < raws.size(); i++) {
+            if (i % 100 == 0) {
+                fprintf(stderr, "[%lu/%lu]\r", i, raws.size());
+            }
             lg.gen(raws[i], offs[i], spans[i], lattice);
             pf.find_path(raws[i], offs[i], feature, lattice, output);
             gradient.clear();
