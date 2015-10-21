@@ -29,6 +29,7 @@ class LabelledFeature {
     /// char-based related
     double* _transition_ptr;
     vector<size_t> _labels;
+    vector<size_t> _label_index;
     vector<double> _emission;
 
     shared_ptr<Indexer<string>> _tag_indexer;
@@ -157,8 +158,10 @@ public:
         _calc_emission(*_dict, *_raw, _emission, false);
 
         _labels.clear();
+        _label_index.clear();
         for (size_t i = 0; i < lattice.size(); i++) {
             const SPAN& span = lattice[i];
+            _label_index.push_back(_tag_indexer->get(span.label()));
             _labels.push_back(
                         _tag_indexer->get(span.label()) * 2
                         + ((span.end - span.begin == 1)?0:1)
@@ -172,10 +175,15 @@ public:
         string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
         if (!_dictionary->get(key, key)) return 0;
         key = string("dic:") + key;
+
+        //vector<double> g(_tag_indexer->size() + 1);
+        //g[0] += delta;
+        //g[_tag_indexer->get(span->label()) + 1] += delta;
+        //gradient.add_from(key, g.data(), g.size());
         gradient.add_from(key, &delta, 1);
     }
 
-    double unigram_dictionary(const SPAN* span) {
+    double unigram_dictionary(size_t ind, const SPAN* span) {
         if (!_dictionary) return 0;
 
         string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
@@ -186,7 +194,7 @@ public:
         double* value = _dict->get(key);
 
         if (!value) return 0;
-
+        //return value[0] + value[_label_index[ind] + 1];
         return *value;
     }
 
@@ -284,7 +292,7 @@ public:
         /// word-based features
         
         /// dict-based
-        score += unigram_dictionary(&span);
+        score += unigram_dictionary(uni, &span);
         return score;
     }
 
@@ -456,6 +464,7 @@ public:
         double* value = _dict->get(key);
 
         if (!value) return 0;
+        
 
         return *value;
     }

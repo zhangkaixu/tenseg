@@ -13,6 +13,7 @@
 #include "common/dictionary.h"
 
 #include "gflags/gflags.h"
+#include "glog/logging.h"
 
 
 using namespace std;
@@ -174,10 +175,12 @@ public:
 
 DEFINE_string(train, "train.tag", "Training file");
 DEFINE_string(dev, "test.tag", "Development file");
+DEFINE_string(txt_model, "", "Development file");
 DEFINE_string(dict, "", "Dict file");
 
 int main(int argc, char* argv[]) {
     google::ParseCommandLineFlags(&argc, &argv, true);
+    google::InitGoogleLogging(argv[0]);
 
     vector<string> raws;
     vector<vector<size_t>> offs;
@@ -197,7 +200,9 @@ int main(int argc, char* argv[]) {
             tag_indexer->get(spans[i][j].label());
         }
     }
-    printf("%lu\n", tag_indexer->size());
+
+    //LOG(INFO)<<"tagset size: "<<tag_indexer->size()<<"\n";
+    fprintf(stderr, "tagset size: %lu\n", tag_indexer->size());
 
 
     Weight model;
@@ -250,6 +255,12 @@ int main(int argc, char* argv[]) {
             eval.eval(test_spans[i], output);
         }
         eval.report();
+    }
+
+    /// save model if a model name is given
+    if (FLAGS_txt_model.size()) {
+        fprintf(stderr, "saving model to %s\n", FLAGS_txt_model.c_str());
+        ave.dump(FLAGS_txt_model.c_str());
     }
     return 0;
 };

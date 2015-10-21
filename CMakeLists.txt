@@ -30,7 +30,8 @@ set (SOURCE_DIR             ${PROJECT_SOURCE_DIR}/src)
 include_directories("${SOURCE_DIR}")
 # add the executable
 add_executable(char_segger ${SOURCE_DIR}/char_segger/char_segger.cc)
-add_executable(word_segger ${SOURCE_DIR}/segger/word_based.cc)
-add_executable(tagger ${SOURCE_DIR}/tagger/tagger.cc)
+#add_executable(word_segger ${SOURCE_DIR}/segger/word_based.cc)
+add_executable(segtag ${SOURCE_DIR}/segtag/segtag.cc)
 
-target_link_libraries(tagger gflags)
+target_link_libraries(segtag gflags)
+target_link_libraries(segtag glog)
