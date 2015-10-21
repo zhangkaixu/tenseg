@@ -12,6 +12,9 @@
 #include "common/optimizer.h"
 #include "common/dictionary.h"
 
+#include "gflags/gflags.h"
+
+
 using namespace std;
 
 using namespace tenseg;
@@ -169,16 +172,22 @@ public:
 };
 
 
-int main() {
+DEFINE_string(train, "train.tag", "Training file");
+DEFINE_string(dev, "test.tag", "Development file");
+DEFINE_string(dict, "", "Dict file");
+
+int main(int argc, char* argv[]) {
+    google::ParseCommandLineFlags(&argc, &argv, true);
+
     vector<string> raws;
     vector<vector<size_t>> offs;
     vector<vector<labelled_span_t>> spans;
-    load<labelled_span_t>(string("dev.tag"), raws, offs, spans);
+    load<labelled_span_t>(FLAGS_train, raws, offs, spans);
 
     vector<string> test_raws;
     vector<vector<size_t>> test_offs;
     vector<vector<labelled_span_t>> test_spans;
-    load<labelled_span_t>(string("test.tag"), test_raws, test_offs, test_spans);
+    load<labelled_span_t>(FLAGS_dev, test_raws, test_offs, test_spans);
 
 
     //Indexer<string> tag_indexer;
@@ -200,9 +209,11 @@ int main() {
     lg.set_tag_indexer(tag_indexer);
     PathFinder pf;
 
-    auto dictionary = make_shared<Dictionary>();
-    dictionary->load("tyc.dict");
-    feature.set_dictionary(dictionary);
+    if (FLAGS_dict.size()) {
+        auto dictionary = make_shared<Dictionary>();
+        dictionary->load(FLAGS_dict.c_str());
+        feature.set_dictionary(dictionary);
+    }
 
     Eval<labelled_span_t> eval;
 

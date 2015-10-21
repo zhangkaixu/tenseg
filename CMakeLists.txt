@@ -14,6 +14,8 @@ else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+#find_package(gflags REQUIRED)
+
 #SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 
@@ -30,3 +32,5 @@ include_directories("${SOURCE_DIR}")
 add_executable(char_segger ${SOURCE_DIR}/char_segger/char_segger.cc)
 add_executable(word_segger ${SOURCE_DIR}/segger/word_based.cc)
 add_executable(tagger ${SOURCE_DIR}/tagger/tagger.cc)
+
+target_link_libraries(tagger gflags)
