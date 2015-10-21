@@ -1,4 +1,4 @@
-# 一个c++11实现的中文自然语言处理工具集
+# 一个中文自然语言处理工具集
 
 ## 基于字标注的分词模型
 
@@ -10,7 +10,16 @@
 
 ## 未来计划
 
-* html标题、标签、正文提取
 * 关键词提取
 * 实体识别模型
 * 文本去重
+
+## 相关项目
+
+* 正文提取
+    * [python-readability](https://github.com/buriy/python-readability)
+* 存储、索引
+    * weed-fs
+    * MongoDB
+    * elasticsearch
+
