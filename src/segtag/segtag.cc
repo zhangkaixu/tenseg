@@ -6,14 +6,17 @@
 #include <set>
 #include <vector>
 #include <memory>
+
+#include "gflags/gflags.h"
+#include "glog/logging.h"
+
 #include "common/common.h"
-#include "common/feature.h"
 #include "common/weight.h"
 #include "common/optimizer.h"
 #include "common/dictionary.h"
 
-#include "gflags/gflags.h"
-#include "glog/logging.h"
+#include "segtag/feature.h"
+
 
 
 using namespace std;
@@ -177,6 +180,7 @@ DEFINE_string(train, "train.tag", "Training file");
 DEFINE_string(dev, "test.tag", "Development file");
 DEFINE_string(txt_model, "", "Development file");
 DEFINE_string(dict, "", "Dict file");
+DEFINE_int32(iteration, 5, "Iteration");
 
 int main(int argc, char* argv[]) {
     google::ParseCommandLineFlags(&argc, &argv, true);
@@ -225,9 +229,9 @@ int main(int argc, char* argv[]) {
     vector<labelled_span_t> lattice;
     vector<labelled_span_t> output;
     Weight gradient;
-    size_t iterations = 5;
+    size_t iterations = FLAGS_iteration;
     for (size_t it = 0; it < iterations; it ++) {
-        feature.set_dict(model);
+        feature.set_weight(model);
         eval.reset();
         for (size_t i = 0; i < raws.size(); i++) {
             //printf("%s\n", raws[i].c_str());
@@ -248,7 +252,7 @@ int main(int argc, char* argv[]) {
 
         learner.average(model, ave);
         eval.reset();
-        feature.set_dict(ave);
+        feature.set_weight(ave);
         for (size_t i = 0; i < test_raws.size(); i++) {
             lg.gen(test_raws[i], test_offs[i], test_spans[i], lattice);
             pf.find_path(test_raws[i], test_offs[i], feature, lattice, output);

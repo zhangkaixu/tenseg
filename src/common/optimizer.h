@@ -3,6 +3,9 @@
 
 namespace tenseg {
 
+/**
+ * 一个平均感知器的学习类
+ * */
 class Learner {
 private:
     Weight _acc;
