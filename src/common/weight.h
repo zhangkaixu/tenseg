@@ -27,7 +27,8 @@ public:
     Weight(const char* filename) {
     }
 
-    void load(const char* filename) {
+    void load(const string& filename) {
+        clear();
         std::ifstream input(filename);
         string str;
         vector<double> vec;
@@ -42,9 +43,11 @@ public:
             }
             this->add_from(str, &(vec[0]), vec.size());
         }
+        fprintf(stderr, "load %lu weights\n", _map.size());
     }
-    void dump(const char* filename) {
-        std::FILE* pf = fopen(filename, "w");
+    void dump(const string& filename) {
+        std::FILE* pf = fopen(filename.c_str(), "w");
+        fprintf(stderr, "dump %lu weights\n", _map.size());
 
         double* ptr;
         size_t len;
@@ -58,6 +61,7 @@ public:
                 fprintf(pf, "\t%g", ptr[i]);
             }fprintf(pf, "\n");
         }
+        fclose(pf);
     }
 
     void dbg(const string& key) {

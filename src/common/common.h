@@ -154,6 +154,7 @@ public:
     size_t get(const T& ref) {
         auto ret = index_.find(ref);
         if (ret == index_.end()) {
+            //printf("new\n");
             size_t ind = index_.size();
             index_[ref] = ind;
             list_.push_back(ref);
@@ -166,6 +167,25 @@ public:
     }
     size_t size() const {
         return index_.size();
+    }
+
+    void dump(const string& filename) const{
+        std::ofstream output(filename);
+        for (auto iter : list_)
+            output << iter << "\n";
+        output.close();
+    }
+
+    void load(const string& filename) {
+        std::ifstream input(filename);
+        index_.clear();
+        list_.clear();
+        for (std::string line; std::getline(input, line); ) {
+            index_[line] = list_.size();
+            list_.push_back(line);
+        }
+        //fprintf(stderr, "load %lu tags\n", list_.size());
+        input.close();
     }
 private:
     map<T, size_t> index_;
