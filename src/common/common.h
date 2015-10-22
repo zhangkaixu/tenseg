@@ -16,90 +16,6 @@ using namespace std;
  * decl
  * */
 
-struct span_t {
-    size_t begin;
-    size_t end;
-    //size_t label;
-    span_t() : begin(0), end(0) {};
-    span_t(size_t b, size_t e) : begin(b), end(e) {
-    }
-    template <class T>
-    span_t(const T& ref) {
-        begin = ref.begin;
-        end = ref.end;
-    }
-
-    static const string default_label;
-    const string& label() const{
-        return default_label;
-    }
-
-    span_t(std::string& str, size_t& offset, vector<char>& raw) {
-        begin = offset;
-        for (size_t i = 0; i < str.size(); i++) {
-            const char& c = str[i];
-            raw.push_back(c);
-            if ((0xc0 == (c & 0xc0))
-                    || !(c & 0x80)) {
-                offset++;
-            }
-        }
-        end = offset;
-    }
-    bool operator==(span_t& other)const {
-        if (begin != other.begin) return false;
-        if (end != other.end) return false;
-        return true;
-    }
-};
-
-struct labelled_span_t : public span_t {
-    string label_;
-
-    labelled_span_t(size_t b, size_t e) : span_t(b, e), label_(string()){};
-    labelled_span_t(size_t b, size_t e, string& l) : span_t(b, e), label_(l){};
-
-    const string& label() const{
-        return label_;
-    }
-    labelled_span_t(std::string& str, size_t& offset, vector<char>& raw) {
-        begin = offset;
-        for (size_t i = 0; i < str.size(); i++) {
-            const char& c = str[i];
-            if (c == '_') {
-                label_ = str.substr(i + 1);
-                break;
-            }
-            raw.push_back(c);
-            if ((0xc0 == (c & 0xc0))
-                    || !(c & 0x80)) {
-                offset++;
-            }
-        }
-        end = offset;
-    }
-    bool operator==(labelled_span_t& other)const {
-        if (begin != other.begin) return false;
-        if (end != other.end) return false;
-        if (label_ != other.label_) return false;
-        return true;
-    }
-};
-
-//struct linked_span_t : public span_t {
-//    linked_span_t(size_t b, size_t e) :
-//        span_t(b, e), score(0), pointer(0)
-//    {};
-//    double score;
-//    size_t pointer;
-//};
-
-
-//class Eval;
-void load_corpus( const string& filename,
-        vector<string>& raws, vector<vector<size_t>>& offs, vector<vector<span_t>>& spans);
-
-
 
 /// implementations
 
@@ -181,11 +97,6 @@ private:
     }
 };
 
-span_t parse_item(std::string& str, size_t& offset, vector<unsigned char>& raw) {
-    span_t span(offset, offset + str.size());
-    offset += str.size();
-    return span;
-}
 
 /**
  * load corpus from a segmented file

@@ -13,22 +13,6 @@ using std::string;
 using std::vector;
 
 
-class IWeight {
-public:
-    virtual void load(const char* filename) = 0;
-    virtual void dump(const char* filename) = 0;
-
-    virtual void clear() = 0;
-    virtual void insert(const string& key, const size_t length) = 0;
-    virtual void get(const string& key, double*& ptr, size_t& len) = 0;
-    virtual double* get(const string& key) = 0;
-    virtual void add_from(const string& key, const double* ptr, 
-            const size_t len, double eta = 1.0) = 0;
-
-    virtual void add_to(const string& key, double* ptr) = 0;
-    virtual void update(IWeight& other, double eta) = 0;
-
-};
 
 class Weight {
 private:
@@ -174,6 +158,24 @@ public:
     }
 };
 
+class IWeight {
+public:
+    /// access
+    virtual void get(const string& key, double*& ptr, size_t& len) = 0;
+    virtual double* get(const string& key) = 0;
+    virtual void add_to(const string& key, double* ptr) = 0;
+
+    /// modify
+    virtual void clear() = 0;
+    virtual void insert(const string& key, const size_t length) = 0;
+    virtual void add_from(const string& key, const double* ptr, 
+            const size_t len, double eta = 1.0) = 0;
+    virtual void update(IWeight& other, double eta) = 0;
+
+    /// filesystem
+    virtual void load(const char* filename) = 0;
+    virtual void dump(const char* filename) = 0;
+};
 
 }
 
