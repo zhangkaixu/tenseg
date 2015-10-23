@@ -77,6 +77,8 @@ struct labelled_span_t : public span_t {
     }
 };
 
+
+
 template<typename SPAN>
 struct lattice_t {
     vector<SPAN> spans;
@@ -85,6 +87,20 @@ struct lattice_t {
 };
 
 
+template<typename SPAN>
+ostream& operator<<(ostream & os, const lattice_t<SPAN>& lat) {
+    for (size_t i = 0; i < lat.spans.size(); i++) {
+        if (i > 0) os<<" ";
+        auto& span = lat.spans[i];
+        size_t begin = (*lat.off)[span.begin];
+        size_t end = (*lat.off)[span.end];
+        os<<lat.raw->substr(begin, end - begin);
+        if (span.label().size()) {
+            os<<"_"<<span.label();
+        }
+    }
+    return os;
+}
 
 class PathFinder {
 public:

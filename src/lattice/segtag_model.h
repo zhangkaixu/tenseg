@@ -105,7 +105,7 @@ public:
     LabelledFeature<SPAN>& feature() {
         return feature_;
     }
-    shared_ptr<Indexer<string>>& tag_indexer() {
+    const shared_ptr<Indexer<string>>& tag_indexer() {
         return tag_indexer_;
     }
     void save(const string& txt_model) {

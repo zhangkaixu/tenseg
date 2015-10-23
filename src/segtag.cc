@@ -1,5 +1,5 @@
 #include "gflags/gflags.h"
-#include "glog/logging.h"
+//#include "glog/logging.h"
 
 #include "common/common.h"
 #include "common/weight.h"
@@ -63,7 +63,6 @@ public:
         size_t n = off.size() - 1;
 
         lattice.clear();
-        //printf("%lu\n", off.size());
         // generate all spans
         for (size_t i = 0; i < n; i++) {
             for (size_t j = i + 1; j < n + 1; j++) {
@@ -94,20 +93,6 @@ void utf8_off(const C& raw, vector<size_t>& off) {
     off.push_back(raw.size());
 }
 
-template<typename SPAN>
-void lattice_out(lattice_t<SPAN>& lat) {
-    for (size_t i = 0; i < lat.spans.size(); i++) {
-        if (i > 0) cout<<" ";
-        auto& span = lat.spans[i];
-        size_t begin = (*lat.off)[span.begin];
-        size_t end = (*lat.off)[span.end];
-        cout<<lat.raw->substr(begin, end - begin);
-        if (span.label().size()) {
-            cout<<"_"<<span.label();
-        }
-    }
-    cout<<endl;
-}
 
 /**
  * load corpus from a segmented file
@@ -139,14 +124,6 @@ void load(
         Ys.back().off = make_shared<vector<size_t>>();
         vector<size_t>& off = *Ys.back().off;
         utf8_off(raw, off);
-        //for (size_t i = 0; i < raw.size(); i++) {
-        //    const char& c = raw[i];
-        //    if ((0xc0 == (c & 0xc0))
-        //            || !(c & 0x80)) {
-        //        off.push_back(i);
-        //    }
-        //}
-        //off.push_back(raw.size());
 
         raw.push_back(0);
         Ys.back().raw = make_shared<string>(&raw[0]);
@@ -154,8 +131,6 @@ void load(
         Xs.back().off = Ys.back().off;
     }
 
-    //LatticeGenerator lg;
-    //lg.set_tag_indexer(tag_indexer);
     if (tag_indexer->size() == 0) {
         for (auto& x : Ys) {
             for (auto& span : x.spans) {
@@ -163,13 +138,6 @@ void load(
             }
         }
     }
-    //printf("tagsize %lu\n", tag_indexer->size());
-    //for (auto& iter : Xs) {
-    //    lg.gen(iter);
-    //    //cout<<*iter.raw <<"\n";
-    //    //cout<<iter.off->size() <<"\n";
-    //    //cout<<iter.spans.size() <<"\n";
-    //}
 };
 
 
@@ -182,26 +150,21 @@ DEFINE_int32(iteration, 5, "Iteration");
 
 int main(int argc, char* argv[]) {
     typedef labelled_span_t span_type;
-    /// 参数解析
+    //google::InitGoogleLogging(argv[0]);
+    /// 命令行参数解析
     google::ParseCommandLineFlags(&argc, &argv, true);
-    google::InitGoogleLogging(argv[0]);
     
     /// 模型
-    SegTag<labelled_span_t> segtag;
+    SegTag<span_type> segtag;
     if ((!FLAGS_train.size()) && (FLAGS_txt_model.size())) {
         segtag.load(FLAGS_txt_model);
     }
-    vector<lattice_t<labelled_span_t>> train_Xs;
-    vector<lattice_t<labelled_span_t>> train_Ys;
-    vector<lattice_t<labelled_span_t>> test_Xs;
-    vector<lattice_t<labelled_span_t>> test_Ys;
 
-    /// 标签集
-    auto tag_indexer = segtag.tag_indexer();
-    //LOG(INFO)<<"tagset size: "<<tag_indexer->size()<<"\n";
-    fprintf(stderr, "tagset size: %lu\n", tag_indexer->size());
-
-
+    /// 语料
+    vector<lattice_t<span_type>> train_Xs;
+    vector<lattice_t<span_type>> train_Ys;
+    vector<lattice_t<span_type>> test_Xs;
+    vector<lattice_t<span_type>> test_Ys;
 
     /// 外部词典
     if (FLAGS_dict.size()) {
@@ -209,14 +172,16 @@ int main(int argc, char* argv[]) {
         dictionary->load(FLAGS_dict.c_str());
         segtag.feature().set_dictionary(dictionary);
     }
+
+    /// 词图产生
     LatticeGenerator lg;
-    lg.set_tag_indexer(tag_indexer);
+    lg.set_tag_indexer(segtag.tag_indexer());
 
     /// 训练模式
     if (FLAGS_train.size()) {
-        load(FLAGS_train, tag_indexer, train_Xs, train_Ys);
+        load(FLAGS_train, segtag.tag_indexer(), train_Xs, train_Ys);
         if (FLAGS_test.size()) {
-            load(FLAGS_test, tag_indexer, test_Xs, test_Ys);
+            load(FLAGS_test, segtag.tag_indexer(), test_Xs, test_Ys);
         }
 
         size_t iterations = FLAGS_iteration;
@@ -230,7 +195,7 @@ int main(int argc, char* argv[]) {
 
     /// 测试模式
     if (FLAGS_test.size()) { 
-        load(FLAGS_test, tag_indexer, test_Xs, test_Ys);
+        load(FLAGS_test, segtag.tag_indexer(), test_Xs, test_Ys);
         segtag.test(test_Xs, test_Ys, lg);
         return 0;
     }
@@ -245,7 +210,7 @@ int main(int argc, char* argv[]) {
         for (; std::getline(cin, *Xs.back().raw); ) {
             utf8_off(*Xs.back().raw, *Xs.back().off);
             segtag.predict(Xs, Ys, lg);
-            lattice_out(Ys.back());
+            cout << Ys.back() << endl;
         }
     }
 
