@@ -154,8 +154,8 @@ void load(
         Xs.back().off = Ys.back().off;
     }
 
-    LatticeGenerator lg;
-    lg.set_tag_indexer(tag_indexer);
+    //LatticeGenerator lg;
+    //lg.set_tag_indexer(tag_indexer);
     if (tag_indexer->size() == 0) {
         for (auto& x : Ys) {
             for (auto& span : x.spans) {
@@ -164,12 +164,12 @@ void load(
         }
     }
     //printf("tagsize %lu\n", tag_indexer->size());
-    for (auto& iter : Xs) {
-        lg.gen(iter);
-        //cout<<*iter.raw <<"\n";
-        //cout<<iter.off->size() <<"\n";
-        //cout<<iter.spans.size() <<"\n";
-    }
+    //for (auto& iter : Xs) {
+    //    lg.gen(iter);
+    //    //cout<<*iter.raw <<"\n";
+    //    //cout<<iter.off->size() <<"\n";
+    //    //cout<<iter.spans.size() <<"\n";
+    //}
 };
 
 
@@ -209,6 +209,8 @@ int main(int argc, char* argv[]) {
         dictionary->load(FLAGS_dict.c_str());
         segtag.feature().set_dictionary(dictionary);
     }
+    LatticeGenerator lg;
+    lg.set_tag_indexer(tag_indexer);
 
     /// 训练模式
     if (FLAGS_train.size()) {
@@ -218,7 +220,7 @@ int main(int argc, char* argv[]) {
         }
 
         size_t iterations = FLAGS_iteration;
-        segtag.fit(train_Xs, train_Ys, test_Xs, test_Ys, iterations);
+        segtag.fit(train_Xs, train_Ys, test_Xs, test_Ys, lg, iterations);
 
         if (FLAGS_txt_model.size()) {
             segtag.save(FLAGS_txt_model);
@@ -229,14 +231,12 @@ int main(int argc, char* argv[]) {
     /// 测试模式
     if (FLAGS_test.size()) { 
         load(FLAGS_test, tag_indexer, test_Xs, test_Ys);
-        segtag.test(test_Xs, test_Ys);
+        segtag.test(test_Xs, test_Ys, lg);
         return 0;
     }
 
     /// 预测模式
     if (FLAGS_txt_model.size()) {
-        LatticeGenerator lg;
-        lg.set_tag_indexer(segtag.tag_indexer());
         vector<lattice_t<span_type>> Xs(1);
         vector<lattice_t<span_type>> Ys(1);
         Xs.back().raw = make_shared<string>();
@@ -244,8 +244,7 @@ int main(int argc, char* argv[]) {
         
         for (; std::getline(cin, *Xs.back().raw); ) {
             utf8_off(*Xs.back().raw, *Xs.back().off);
-            lg.gen(Xs.back());
-            segtag.predict(Xs, Ys);
+            segtag.predict(Xs, Ys, lg);
             lattice_out(Ys.back());
         }
     }
