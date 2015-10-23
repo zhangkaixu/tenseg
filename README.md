@@ -8,6 +8,10 @@
 
 可用于简单的分词，也可以用于词性标注，或者实体识别。
 
+## 正文提取
+
+提取新闻标题、关键词、正文的`python2`脚本。基于 [python-readability](https://github.com/buriy/python-readability)
+
 ## 未来计划
 
 * 关键词提取
