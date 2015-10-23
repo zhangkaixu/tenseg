@@ -1,22 +1,175 @@
-#include <cstdio>
-#include <algorithm>
-#include <string>
-#include <vector>
-#include <memory>
-
 #include "gflags/gflags.h"
-//#include "glog/logging.h"
+#include "glog/logging.h"
 
 #include "common/common.h"
 #include "common/weight.h"
 #include "common/optimizer.h"
 #include "common/dictionary.h"
 
-#include "lattice/lattice.h"
-#include "lattice/feature.h"
+#include "lattice/segtag_model.h"
+
+#include <cstdio>
+#include <algorithm>
+#include <string>
+#include <vector>
+#include <memory>
 
 
 using namespace tenseg;
+
+
+class LatticeGenerator {
+    enum char_type_t { ///< 字符类型
+        NORMAL,     ///< 普通字符
+        PUNC        ///< 标点符号
+    };
+    set<string> _punc; ///< 标点符号集合
+    vector<char_type_t> _types;
+    shared_ptr<Indexer<string>> _tag_indexer;
+
+    void _calc_type(const string& raw,
+            const vector<size_t>& off) {
+        _types.clear();
+        for (size_t i = 0; i < off.size() - 1; i++) {
+            string ch = raw.substr(off[i], off[i + 1] - off[i]);
+            _types.push_back(char_type_t::NORMAL);
+            if (_punc.find(ch) != _punc.end()) {
+                _types.back() = char_type_t::PUNC;
+            }
+        }
+        return;
+    }
+public:
+    LatticeGenerator() {
+        _punc.insert(string("。")); _punc.insert(string("，"));
+        _punc.insert(string("？")); _punc.insert(string("！"));
+        _punc.insert(string("：")); _punc.insert(string("“"));
+        _punc.insert(string("”"));
+    }
+
+    void set_tag_indexer(shared_ptr<Indexer<string>> ti) {
+        _tag_indexer = ti;
+    }
+
+    void gen(lattice_t<labelled_span_t>& lat) {
+        const string& raw = *lat.raw;
+        const vector<size_t>& off = *lat.off;
+        vector<labelled_span_t>& lattice = lat.spans;
+
+        if (off.size() == 0) return;
+
+        _calc_type(raw, off);
+        
+        size_t n = off.size() - 1;
+
+        lattice.clear();
+        //printf("%lu\n", off.size());
+        // generate all spans
+        for (size_t i = 0; i < n; i++) {
+            for (size_t j = i + 1; j < n + 1; j++) {
+                if (j - i > 10) break;
+
+                for (size_t k = 0; k < _tag_indexer->size(); k++) {
+                    lattice.push_back(labelled_span_t(i, j, (*_tag_indexer)[k]));
+                }
+
+                if (_types[i] == char_type_t::PUNC) break;
+                if (j < n && _types[j] == char_type_t::PUNC) break;
+            }
+        }
+    }
+
+    void gen(const string& raw, 
+            const vector<size_t>& off, 
+            const vector<labelled_span_t>& span,
+            vector<labelled_span_t>& lattice) {
+
+        if (off.size() == 0) return;
+
+        _calc_type(raw, off);
+        
+        size_t n = off.size() - 1;
+
+        lattice.clear();
+        // generate all spans
+        for (size_t i = 0; i < n; i++) {
+            for (size_t j = i + 1; j < n + 1; j++) {
+                if (j - i > 10) break;
+
+                for (size_t k = 0; k < _tag_indexer->size(); k++) {
+                    lattice.push_back(labelled_span_t(i, j, (*_tag_indexer)[k]));
+                }
+
+                if (_types[i] == char_type_t::PUNC) break;
+                if (j < n && _types[j] == char_type_t::PUNC) break;
+            }
+        }
+    }
+};
+
+
+
+/**
+ * load corpus from a segmented file
+ * */
+template<class SPAN>
+void load(
+        const string& filename,
+        shared_ptr<Indexer<string>> tag_indexer,
+        vector<lattice_t<SPAN>>& Xs,
+        vector<lattice_t<SPAN>>& Ys
+        ){
+
+    std::ifstream input(filename);
+    
+    for (std::string line; std::getline(input, line); ) {
+        Xs.push_back(lattice_t<SPAN>());
+        Ys.push_back(lattice_t<SPAN>());
+        vector<SPAN>& sent = Ys.back().spans;
+
+        size_t offset = 0;
+        std::istringstream iss(line);
+        std::string item;
+        vector<char> raw;
+        while (!iss.eof()) {
+            iss >> item;
+            sent.push_back(SPAN(item, offset, raw));
+        }
+
+        Ys.back().off = make_shared<vector<size_t>>();
+        vector<size_t>& off = *Ys.back().off;
+        for (size_t i = 0; i < raw.size(); i++) {
+            const char& c = raw[i];
+            if ((0xc0 == (c & 0xc0))
+                    || !(c & 0x80)) {
+                off.push_back(i);
+            }
+        }
+        off.push_back(raw.size());
+
+        raw.push_back(0);
+        Ys.back().raw = make_shared<string>(&raw[0]);
+        Xs.back().raw = Ys.back().raw;
+        Xs.back().off = Ys.back().off;
+    }
+
+    LatticeGenerator lg;
+    lg.set_tag_indexer(tag_indexer);
+    if (tag_indexer->size() == 0) {
+        for (auto& x : Ys) {
+            for (auto& span : x.spans) {
+                tag_indexer->get(span.label());
+            }
+        }
+    }
+    //printf("tagsize %lu\n", tag_indexer->size());
+    for (auto& iter : Xs) {
+        lg.gen(iter);
+        //cout<<*iter.raw <<"\n";
+        //cout<<iter.off->size() <<"\n";
+        //cout<<iter.spans.size() <<"\n";
+    }
+};
 
 
 /// 定义参数
@@ -29,121 +182,52 @@ DEFINE_int32(iteration, 5, "Iteration");
 int main(int argc, char* argv[]) {
     /// 参数解析
     google::ParseCommandLineFlags(&argc, &argv, true);
-    //google::InitGoogleLogging(argv[0]);
-
-    /// 训练集
-    vector<string> raws;
-    vector<vector<size_t>> offs;
-    vector<vector<labelled_span_t>> spans;
-    if (FLAGS_train.size())
-        load<labelled_span_t>(FLAGS_train, raws, offs, spans);
-
-    /// 测试集/验证集
-    vector<string> test_raws;
-    vector<vector<size_t>> test_offs;
-    vector<vector<labelled_span_t>> test_spans;
-    if (FLAGS_test.size())
-        load<labelled_span_t>(FLAGS_test, test_raws, test_offs, test_spans);
-
+    google::InitGoogleLogging(argv[0]);
+    
+    /// 模型
+    SegTag<labelled_span_t> segtag;
+    if ((!FLAGS_train.size()) && (FLAGS_txt_model.size())) {
+        segtag.load(FLAGS_txt_model);
+    }
+    vector<lattice_t<labelled_span_t>> train_Xs;
+    vector<lattice_t<labelled_span_t>> train_Ys;
+    vector<lattice_t<labelled_span_t>> test_Xs;
+    vector<lattice_t<labelled_span_t>> test_Ys;
 
     /// 标签集
-    auto tag_indexer = make_shared<Indexer<string>>();
-    if (FLAGS_train.size()) {
-        for (size_t i = 0; i < spans.size(); i++)
-            for (size_t j = 0; j < spans[i].size(); j++)
-                tag_indexer->get(spans[i][j].label());
-    } else if (FLAGS_txt_model.size()) {
-        tag_indexer->load(FLAGS_txt_model + ".tags");
-    } else {
-        fprintf(stderr, "you should at least specify train or model\n");
-        return 0;
-    }
+    auto tag_indexer = segtag.tag_indexer();
     //LOG(INFO)<<"tagset size: "<<tag_indexer->size()<<"\n";
     fprintf(stderr, "tagset size: %lu\n", tag_indexer->size());
 
 
-    /// 特征
-    LabelledFeature<labelled_span_t> feature;
-    feature.set_tag_indexer(tag_indexer);
-    /// 
-
-    LatticeGenerator lg;
-    lg.set_tag_indexer(tag_indexer);
-
-    PathFinder pf;
-    Learner<Weight> learner;
-    Weight ave;
-    if ((!FLAGS_train.size())
-            && (FLAGS_txt_model.size())) {
-        learner.weight().load(FLAGS_txt_model + ".weights");
-    }
 
     /// 外部词典
     if (FLAGS_dict.size()) {
         auto dictionary = make_shared<Dictionary>();
         dictionary->load(FLAGS_dict.c_str());
-        feature.set_dictionary(dictionary);
+        segtag.feature().set_dictionary(dictionary);
     }
-
-    Eval<labelled_span_t> eval;
-
-    vector<labelled_span_t> lattice;
-    vector<labelled_span_t> output;
 
     /// 训练模式
     if (FLAGS_train.size()) {
-        size_t iterations = FLAGS_iteration;
-        for (size_t it = 0; it < iterations; it ++) {
-            feature.set_weight(learner.weight());
-            eval.reset();
-            for (size_t i = 0; i < raws.size(); i++) {
-                if (i % 100 == 0) {
-                    fprintf(stderr, "[%lu/%lu]\r", i, raws.size());
-                }
-                lg.gen(raws[i], offs[i], spans[i], lattice);
-                pf.find_path(raws[i], offs[i], feature, lattice, output);
-
-                /// update
-                Weight gradient;
-                feature.calc_gradient(spans[i], output, gradient);
-                learner.update(gradient);
-
-                eval.eval(spans[i], output);
-            }
-            eval.report();
-
-            if (!FLAGS_test.size()) continue;
-
-            learner.average(ave);
-            feature.set_weight(ave);
-            eval.reset();
-            for (size_t i = 0; i < test_raws.size(); i++) {
-                lg.gen(test_raws[i], test_offs[i], test_spans[i], lattice);
-                pf.find_path(test_raws[i], test_offs[i], feature, lattice, output);
-                eval.eval(test_spans[i], output);
-            }
-            eval.report();
+        load(FLAGS_train, tag_indexer, train_Xs, train_Ys);
+        if (FLAGS_test.size()) {
+            load(FLAGS_test, tag_indexer, test_Xs, test_Ys);
         }
 
-        /// save model if a model name is given
+        size_t iterations = FLAGS_iteration;
+        segtag.fit(train_Xs, train_Ys, test_Xs, test_Ys, iterations);
+
         if (FLAGS_txt_model.size()) {
-            learner.average(ave);
-            fprintf(stderr, "saving weights and tags\n");
-            ave.dump((FLAGS_txt_model + ".weights").c_str());
-            tag_indexer->dump((FLAGS_txt_model + ".tags").c_str());
+            segtag.save(FLAGS_txt_model);
         }
         return 0;
     }
-    if (FLAGS_test.size()) { /// 测试模式
-        //learner.weight().load(FLAGS_txt_model + ".weights");
-        feature.set_weight(learner.weight());
-        eval.reset();
-        for (size_t i = 0; i < test_raws.size(); i++) {
-            lg.gen(test_raws[i], test_offs[i], test_spans[i], lattice);
-            pf.find_path(test_raws[i], test_offs[i], feature, lattice, output);
-            eval.eval(test_spans[i], output);
-        }
-        eval.report();
+
+    /// 测试模式
+    if (FLAGS_test.size()) { 
+        load(FLAGS_test, tag_indexer, test_Xs, test_Ys);
+        segtag.test(test_Xs, test_Ys);
         return 0;
     }
 

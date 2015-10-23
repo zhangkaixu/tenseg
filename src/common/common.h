@@ -98,54 +98,6 @@ private:
 };
 
 
-/**
- * load corpus from a segmented file
- * */
-template<class SPAN>
-void load(
-        const string& filename,
-        vector<string>& raws,
-        vector<vector<size_t>>& offs,
-        vector<vector<SPAN>>& corpus
-        ){
-
-    std::ifstream input(filename);
-    
-    for (std::string line; std::getline(input, line); ) {
-        corpus.push_back(vector<SPAN>());
-        vector<SPAN>& sent = corpus.back();
-
-        size_t offset = 0;
-        std::istringstream iss(line);
-        std::string item;
-        vector<char> raw;
-        while (!iss.eof()) {
-            iss >> item;
-            //cout<<"["<<item<<"]\n";
-            sent.push_back(SPAN(item, offset, raw));
-        }
-
-        offs.push_back(vector<size_t>());
-        vector<size_t>& off = offs.back();
-        for (size_t i = 0; i < raw.size(); i++) {
-            const char& c = raw[i];
-            if ((0xc0 == (c & 0xc0))
-                    || !(c & 0x80)) {
-                off.push_back(i);
-            }
-        }
-        off.push_back(raw.size());
-
-        raw.push_back(0);
-        raws.push_back(string(&raw[0]));
-
-        //printf("%lu %s\n", raws.back().size(), raws.back().c_str());
-        //for (size_t i = 0; i < off.size(); i++) {
-        //    printf(" %lu", off[i]);
-        //}printf("\n");
-
-    }
-};
 
 template <class T>
 class Indexer {

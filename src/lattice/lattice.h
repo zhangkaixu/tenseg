@@ -2,9 +2,11 @@
 #include<string>
 #include<set>
 #include<vector>
+#include<memory>
 
 namespace tenseg {
 using namespace std;
+using namespace google;
 
 struct span_t {
     size_t begin;
@@ -75,79 +77,31 @@ struct labelled_span_t : public span_t {
     }
 };
 
-class LatticeGenerator {
-    enum char_type_t { ///< 字符类型
-        NORMAL,     ///< 普通字符
-        PUNC        ///< 标点符号
-    };
-    set<string> _punc; ///< 标点符号集合
-    vector<char_type_t> _types;
-    shared_ptr<Indexer<string>> _tag_indexer;
-
-    void _calc_type(const string& raw,
-            const vector<size_t>& off) {
-        _types.clear();
-        for (size_t i = 0; i < off.size() - 1; i++) {
-            string ch = raw.substr(off[i], off[i + 1] - off[i]);
-            _types.push_back(char_type_t::NORMAL);
-            if (_punc.find(ch) != _punc.end()) {
-                _types.back() = char_type_t::PUNC;
-            }
-        }
-        return;
-    }
-public:
-    LatticeGenerator() {
-        _punc.insert(string("。")); _punc.insert(string("，"));
-        _punc.insert(string("？")); _punc.insert(string("！"));
-        _punc.insert(string("：")); _punc.insert(string("“"));
-        _punc.insert(string("”"));
-    }
-
-    void set_tag_indexer(shared_ptr<Indexer<string>> ti) {
-        _tag_indexer = ti;
-    }
-
-    void gen(const string& raw, 
-            const vector<size_t>& off, 
-            const vector<labelled_span_t>& span,
-            vector<labelled_span_t>& lattice) {
-
-        if (off.size() == 0) return;
-
-        _calc_type(raw, off);
-        
-        size_t n = off.size() - 1;
-
-        lattice.clear();
-        // generate all spans
-        for (size_t i = 0; i < n; i++) {
-            for (size_t j = i + 1; j < n + 1; j++) {
-                if (j - i > 10) break;
-
-                for (size_t k = 0; k < _tag_indexer->size(); k++) {
-                    lattice.push_back(labelled_span_t(i, j, (*_tag_indexer)[k]));
-                }
-
-                if (_types[i] == char_type_t::PUNC) break;
-                if (j < n && _types[j] == char_type_t::PUNC) break;
-            }
-        }
-    }
+template<typename SPAN>
+struct lattice_t {
+    vector<SPAN> spans;
+    shared_ptr<string> raw;
+    shared_ptr<vector<size_t>> off;
 };
+
+
 
 class PathFinder {
 public:
     PathFinder() {}
 
     template <class SPAN, class FEATURE>
-    void find_path(const string& raw,
-            const vector<size_t>& off,
+    void find_path(lattice_t<SPAN>& lat,
             FEATURE& feature,
-            const vector<SPAN>& lattice,
-            vector<SPAN>& output
+            lattice_t<SPAN>& out
             ) {
-        
+        const string& raw = *lat.raw;
+        const vector<size_t>& off = *lat.off;
+        const vector<SPAN>& lattice = lat.spans;
+        out.spans.clear();
+        vector<SPAN>& output = out.spans;
+        //cout<<">>>>>"<<lattice.size()<<"<<\n";
+
         feature.prepare(raw, off, lattice);
 
         /// Step 1 prepare path
@@ -214,6 +168,7 @@ public:
         reverse(output.begin(), output.end());
     }
 
+
 private:
     vector<vector<size_t>> begins;
     vector<vector<size_t>> ends;
@@ -222,4 +177,5 @@ private:
     vector<size_t> pointers_;
 
 };
+
 } // namespace

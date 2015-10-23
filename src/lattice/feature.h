@@ -1,4 +1,4 @@
-#pragma
+#pragma once
 #include <cstdio>
 #include <iostream>
 #include <fstream>
@@ -35,7 +35,10 @@ public:
             const string& raw,
             const vector<size_t>& off,
             const vector<SPAN>& lattice) {
-        if (_dict == nullptr) return;
+        if (_dict == nullptr) {
+            fprintf(stderr, "no weight are set for feature");
+            return;
+        }
         _lattice = &lattice;
         _off = &off;
         _raw = &raw;

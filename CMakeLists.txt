@@ -16,6 +16,7 @@ endif()
 #find_package(gflags REQUIRED)
 
 
+#SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 set (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
@@ -29,4 +30,4 @@ add_executable(char_segger ${SOURCE_DIR}/char_segger/char_segger.cc)
 
 add_executable(segtag ${SOURCE_DIR}/segtag.cc)
 target_link_libraries(segtag gflags)
-#target_link_libraries(segtag glog)
+target_link_libraries(segtag glog)
