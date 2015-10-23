@@ -42,6 +42,7 @@ public:
                 lg.gen(train_Xs[i]);
                 decoder_.find_path(train_Xs[i], feature_, out);
                 train_Xs[i].spans.clear();
+                train_Xs[i].spans.shrink_to_fit();
                 /// update
                 Weight gradient;
                 feature_.calc_gradient(train_Ys[i].spans, out.spans, gradient);
@@ -61,6 +62,7 @@ public:
                 decoder_.find_path(test_Xs[i], feature_, out);
                 eval.eval(test_Ys[i].spans, out.spans);
                 test_Xs[i].spans.clear();
+                test_Xs[i].spans.shrink_to_fit();
             }
             eval.report();
         }
@@ -77,6 +79,7 @@ public:
         test_Ys.clear();
         for (size_t i = 0; i < test_Xs.size(); i++) {
             test_Ys.emplace(test_Ys.end());
+            lg.gen(test_Xs[i]);
             decoder_.find_path(test_Xs[i], feature_, test_Ys.back());
             test_Ys.back().raw = test_Xs[i].raw;
             test_Ys.back().off = test_Xs[i].off;
@@ -95,6 +98,7 @@ public:
             decoder_.find_path(test_Xs[i], feature_, out);
             eval.eval(test_Ys[i].spans, out.spans);
             test_Xs[i].spans.clear();
+            test_Xs[i].spans.shrink_to_fit();
         }
         eval.report();
     }
