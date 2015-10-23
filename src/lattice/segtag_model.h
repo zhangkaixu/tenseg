@@ -57,13 +57,25 @@ public:
             }
             eval.report();
         }
+
+        learner.average(ave);
+        feature_.set_weight(ave);
+    }
+    void predict(vector<lattice_t<SPAN>>& test_Xs,
+            vector<lattice_t<SPAN>>& test_Ys) {
+        test_Ys.clear();
+        for (size_t i = 0; i < test_Xs.size(); i++) {
+            test_Ys.emplace(test_Ys.end());
+            decoder_.find_path(test_Xs[i], feature_, test_Ys.back());
+            test_Ys.back().raw = test_Xs[i].raw;
+            test_Ys.back().off = test_Xs[i].off;
+        }
     }
     void test(vector<lattice_t<SPAN>>& test_Xs,
             vector<lattice_t<SPAN>>& test_Ys) {
         Eval<SPAN> eval;
         eval.reset();
         lattice_t<SPAN> out;
-        feature_.set_weight(ave);
         for (size_t i = 0; i < test_Xs.size(); i++) {
             decoder_.find_path(test_Xs[i], feature_, out);
             eval.eval(test_Ys[i].spans, out.spans);
@@ -84,6 +96,7 @@ public:
     void load(const string& txt_model) {
         ave.load(txt_model + ".weights");
         tag_indexer_->load(txt_model + ".tags");
+        feature_.set_weight(ave);
     }
 
 private:

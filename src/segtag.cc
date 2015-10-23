@@ -78,36 +78,36 @@ public:
             }
         }
     }
-
-    void gen(const string& raw, 
-            const vector<size_t>& off, 
-            const vector<labelled_span_t>& span,
-            vector<labelled_span_t>& lattice) {
-
-        if (off.size() == 0) return;
-
-        _calc_type(raw, off);
-        
-        size_t n = off.size() - 1;
-
-        lattice.clear();
-        // generate all spans
-        for (size_t i = 0; i < n; i++) {
-            for (size_t j = i + 1; j < n + 1; j++) {
-                if (j - i > 10) break;
-
-                for (size_t k = 0; k < _tag_indexer->size(); k++) {
-                    lattice.push_back(labelled_span_t(i, j, (*_tag_indexer)[k]));
-                }
-
-                if (_types[i] == char_type_t::PUNC) break;
-                if (j < n && _types[j] == char_type_t::PUNC) break;
-            }
-        }
-    }
 };
 
 
+template<class C>
+void utf8_off(const C& raw, vector<size_t>& off) {
+    off.clear();
+    for (size_t i = 0; i < raw.size(); i++) {
+        const char& c = raw[i];
+        if ((0xc0 == (c & 0xc0))
+                || !(c & 0x80)) {
+            off.push_back(i);
+        }
+    }
+    off.push_back(raw.size());
+}
+
+template<typename SPAN>
+void lattice_out(lattice_t<SPAN>& lat) {
+    for (size_t i = 0; i < lat.spans.size(); i++) {
+        if (i > 0) cout<<" ";
+        auto& span = lat.spans[i];
+        size_t begin = (*lat.off)[span.begin];
+        size_t end = (*lat.off)[span.end];
+        cout<<lat.raw->substr(begin, end - begin);
+        if (span.label().size()) {
+            cout<<"_"<<span.label();
+        }
+    }
+    cout<<endl;
+}
 
 /**
  * load corpus from a segmented file
@@ -138,14 +138,15 @@ void load(
 
         Ys.back().off = make_shared<vector<size_t>>();
         vector<size_t>& off = *Ys.back().off;
-        for (size_t i = 0; i < raw.size(); i++) {
-            const char& c = raw[i];
-            if ((0xc0 == (c & 0xc0))
-                    || !(c & 0x80)) {
-                off.push_back(i);
-            }
-        }
-        off.push_back(raw.size());
+        utf8_off(raw, off);
+        //for (size_t i = 0; i < raw.size(); i++) {
+        //    const char& c = raw[i];
+        //    if ((0xc0 == (c & 0xc0))
+        //            || !(c & 0x80)) {
+        //        off.push_back(i);
+        //    }
+        //}
+        //off.push_back(raw.size());
 
         raw.push_back(0);
         Ys.back().raw = make_shared<string>(&raw[0]);
@@ -180,6 +181,7 @@ DEFINE_string(dict, "", "Dict file");
 DEFINE_int32(iteration, 5, "Iteration");
 
 int main(int argc, char* argv[]) {
+    typedef labelled_span_t span_type;
     /// 参数解析
     google::ParseCommandLineFlags(&argc, &argv, true);
     google::InitGoogleLogging(argv[0]);
@@ -229,6 +231,23 @@ int main(int argc, char* argv[]) {
         load(FLAGS_test, tag_indexer, test_Xs, test_Ys);
         segtag.test(test_Xs, test_Ys);
         return 0;
+    }
+
+    /// 预测模式
+    if (FLAGS_txt_model.size()) {
+        LatticeGenerator lg;
+        lg.set_tag_indexer(segtag.tag_indexer());
+        vector<lattice_t<span_type>> Xs(1);
+        vector<lattice_t<span_type>> Ys(1);
+        Xs.back().raw = make_shared<string>();
+        Xs.back().off = make_shared<vector<size_t>>();
+        
+        for (; std::getline(cin, *Xs.back().raw); ) {
+            utf8_off(*Xs.back().raw, *Xs.back().off);
+            lg.gen(Xs.back());
+            segtag.predict(Xs, Ys);
+            lattice_out(Ys.back());
+        }
     }
 
     return 0;
