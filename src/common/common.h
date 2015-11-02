@@ -9,6 +9,13 @@
 #include <map>
 #include <ctime>
 
+
+#ifdef Debug
+#define LOG_INFO(x) LOG(INFO) << x
+#else
+#define LOG_INFO(x)
+#endif
+
 namespace tenseg {
 using namespace std;
 

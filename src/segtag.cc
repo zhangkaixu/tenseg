@@ -1,5 +1,5 @@
 #include "gflags/gflags.h"
-//#include "glog/logging.h"
+#include "glog/logging.h"
 
 #include "common/common.h"
 #include "common/weight.h"
@@ -148,18 +148,19 @@ DEFINE_string(txt_model, "", "Development file");
 DEFINE_string(dict, "", "Dict file");
 DEFINE_string(phrase, "", "phrase Dict file");
 DEFINE_int32(iteration, 5, "Iteration");
+//DEFINE_int32(logtostderr, 1, "");
 
 int main(int argc, char* argv[]) {
     typedef labelled_span_t span_type;
-    //google::InitGoogleLogging(argv[0]);
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_stderrthreshold = 2;
+    FLAGS_minloglevel = 1;
+    
     /// 命令行参数解析
     google::ParseCommandLineFlags(&argc, &argv, true);
     
     /// 模型
     SegTag<span_type> segtag;
-    if ((!FLAGS_train.size()) && (FLAGS_txt_model.size())) {
-        segtag.load(FLAGS_txt_model);
-    }
 
     /// 语料
     vector<lattice_t<span_type>> train_Xs;
@@ -180,15 +181,16 @@ int main(int argc, char* argv[]) {
             auto df = make_shared<PhraseFeature<span_type>>(dfile);
             segtag.feature().features().push_back(df);
         }
-        //auto phrase = make_shared<Dictionary>();
-        //phrase->load(FLAGS_phrase.c_str());
-        //segtag.feature().set_phrase(phrase);
-        //printf("load phrase\n");
     }
 
     /// 词图产生
     LatticeGenerator lg;
     lg.set_tag_indexer(segtag.tag_indexer());
+
+    /// load
+    if ((!FLAGS_train.size()) && (FLAGS_txt_model.size())) {
+        segtag.load(FLAGS_txt_model);
+    }
 
     /// 训练模式
     if (FLAGS_train.size()) {
@@ -219,6 +221,7 @@ int main(int argc, char* argv[]) {
         vector<lattice_t<span_type>> Ys(1);
         Xs.back().raw = make_shared<string>();
         Xs.back().off = make_shared<vector<size_t>>();
+
         
         for (; std::getline(cin, *Xs.back().raw); ) {
             utf8_off(*Xs.back().raw, *Xs.back().off);

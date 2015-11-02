@@ -1,5 +1,6 @@
 #pragma once
 #include <map>
+//#include <unordered_map>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -10,6 +11,7 @@ using namespace std;
 class Dictionary {
 private:
     map<string, string> _dict;
+    //unordered_map<string, string> _dict;
 public:
     void load(const char* filename) {
         std::ifstream input(filename);
