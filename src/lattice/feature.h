@@ -17,7 +17,17 @@ using namespace std;
 //
 template<class SPAN>
 class LabelledFeature {
+private:
+    struct span_extra_info_t {
+        size_t phrase_conflict_;
+        void reset() {
+            phrase_conflict_ = 0;
+        }
+    };
 public:
+
+
+
     LabelledFeature() :_transition_ptr(nullptr),
         _dict(nullptr) {};
 
@@ -30,6 +40,11 @@ public:
     void set_dictionary(shared_ptr<Dictionary> dictionary) {
         _dictionary = dictionary;
     }
+    void set_phrase(shared_ptr<Dictionary> phrase) {
+        _phrase = phrase;
+    }
+
+    
 
     void prepare(
             const string& raw,
@@ -39,6 +54,7 @@ public:
             fprintf(stderr, "no weight are set for feature");
             return;
         }
+        //printf("%s\n", raw.c_str());
         _lattice = &lattice;
         _off = &off;
         _raw = &raw;
@@ -47,7 +63,12 @@ public:
 
         _labels.clear();
         _label_index.clear();
+        while (_span_extra_info.size() < lattice.size()) {
+            _span_extra_info.push_back(span_extra_info_t());
+        }
+
         for (size_t i = 0; i < lattice.size(); i++) {
+            _span_extra_info[i].reset();
             const SPAN& span = lattice[i];
             _label_index.push_back(_tag_indexer->get(span.label()));
             _labels.push_back(
@@ -55,6 +76,8 @@ public:
                         + ((span.end - span.begin == 1)?0:1)
                     );
         }
+
+        _prepare_phrase();
     }
 
     void calc_gradient(
@@ -93,6 +116,14 @@ public:
                 _unigram_dictionary_gradient(&output[i], gradient, -1);
             }
         }
+        if (_phrase) {
+            for (size_t i = 0; i < gold.size(); i++) {
+                _unigram_phrase_gradient(&gold[i], gradient, 1);
+            }
+            for (size_t i = 0; i < output.size(); i++) {
+                _unigram_phrase_gradient(&output[i], gradient, -1);
+            }
+        }
 
         /// bigram
         vector<double> g_trans(2 * _tag_indexer->size() * 2 * _tag_indexer->size());
@@ -126,6 +157,8 @@ public:
         
         /// dict-based
         score += unigram_dictionary(uni, &span);
+        /// phrase-based
+        score += unigram_phrase(uni, &span);
         return score;
     }
 
@@ -232,9 +265,50 @@ public:
         double* value = _dict->get(key);
 
         if (!value) return 0;
-        //return value[0] + value[_label_index[ind] + 1];
         return *value;
     }
+
+    double _unigram_phrase_gradient(const SPAN* span, Weight& gradient, double delta) {
+        if (!_phrase) return 0;
+        //printf("grad phrase\n");
+
+        bool conflict = false;
+        
+
+        for (size_t j = span->begin + 1; j < span->end; j++) {
+            if (conflict) break;
+            for (auto phrase_begin : _phrase_ends[j]) {
+                if (phrase_begin < span->begin) {
+                    conflict = true;
+                    break;
+                }
+            }
+            for (auto phrase_end : _phrase_begins[j]) {
+                if (phrase_end > span->end) {
+                    conflict = true;
+                    break;
+                }
+            }
+        }
+        //printf("grad conf %d\n", conflict);
+        if (conflict) {
+            string key = string("phrase_conflict:");
+            gradient.add_from(key, &delta, 1);
+        }
+        //gradient.add_from(key, &delta, 1);
+    }
+    double unigram_phrase(size_t ind, const SPAN* span) {
+        if (!_phrase) return 0;
+        //printf("phrase\n");
+        if (_span_extra_info[ind].phrase_conflict_ == 0) return 0;
+        //printf("conf %lu %lu\n", span->begin, span->end);
+        string key = string("phrase_conflict:");
+        double* value = _dict->get(key);
+        if (!value) return 0;
+        //printf("%g\n", *value);
+        return *value;
+    }
+
     inline size_t _trans_ind(size_t a, size_t b){
         return _labels[a] * 2 * _tag_indexer->size() + _labels[b];
     }
@@ -262,6 +336,96 @@ public:
         return 1;
     }
 private:
+    void _prepare_phrase() {
+        if (!_phrase) return;
+        _phrase_list.clear();
+        vector<SPAN> _tmp_phrase_list;
+
+        const size_t MAX_PHRASE = 12;
+        while (_phrase_begins.size() < _off->size()) {
+            _phrase_begins.push_back(vector<size_t>());
+        }
+        while (_phrase_ends.size() < _off->size()) {
+            _phrase_ends.push_back(vector<size_t>());
+        }
+        for (size_t i = 0; i < _off->size(); i++) {
+            _phrase_begins[i].clear();
+            _phrase_ends[i].clear();
+        }
+
+        /// 找到所有phrase
+        for (size_t i = 0; i < _off->size() - 1; i ++) {
+            size_t begin = (*_off)[i];
+            for (size_t j = i + 1; j < i + MAX_PHRASE; j ++) {
+                if (j >= _off->size()) break;
+                size_t end = (*_off)[j];
+                string value;
+                if (_phrase->get(_raw->substr(begin, end - begin), value)) {
+                    _tmp_phrase_list.push_back(SPAN(i, j));
+                    //printf("phrase %s %lu %lu\n",_raw->substr(begin, end - begin).c_str(), i, j);
+                    //_phrase_begins[i].push_back(j);
+                    //_phrase_ends[j].push_back(i);
+                }
+            }
+        }
+        /// 过滤掉overlap的phrase
+        for (auto& pa : _tmp_phrase_list) {
+            bool ok = true;
+            size_t a = pa.begin;
+            size_t b = pa.end;
+            for (auto& pb : _tmp_phrase_list) {
+                if (!ok) break;
+                size_t c = pb.begin;
+                size_t d = pb.end;
+                if ((a < c && c < b && b < d) ||
+                        (c< a && a < d && d < b)) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                _phrase_list.push_back(pa);
+            }
+        }
+        
+
+        /// 填写begin end
+        for (auto& span : _phrase_list) {
+            size_t i = span.begin;
+            size_t j = span.end;
+            _phrase_begins[i].push_back(j);
+            _phrase_ends[j].push_back(i);
+        }
+
+
+        /// 为lattice计算是否冲突
+        for (size_t i = 0; i < _lattice->size(); i++) {
+            auto& span = (*_lattice)[i];
+            for (size_t j = span.begin + 1; j < span.end; j++) {
+                if (_span_extra_info[i].phrase_conflict_ == 1) break;
+                for (auto phrase_begin : _phrase_ends[j]) {
+                    if (phrase_begin < span.begin) {
+                        _span_extra_info[i].phrase_conflict_ = 1;
+                        break;
+                    }
+                }
+                for (auto phrase_end : _phrase_begins[j]) {
+                    if (phrase_end > span.end) {
+                        _span_extra_info[i].phrase_conflict_ = 1;
+                        break;
+                    }
+                }
+            }
+            if (_span_extra_info[i].phrase_conflict_) {
+                size_t b = (*_off)[span.begin];
+                size_t e = (*_off)[span.end];
+                //printf("conf %s %lu %lu\n", (*_raw).substr(b, e - b).c_str(), span.begin, span.end);
+            }
+            //printf("%lu %lu\n", i, _span_extra_info[i].phrase_conflict_);
+        }
+    }
+
+
     const size_t N = 4;
 
     const string* _raw;
@@ -277,9 +441,16 @@ private:
     vector<size_t> _label_index;
     vector<double> _emission;
 
+    vector<span_extra_info_t> _span_extra_info;
+
     shared_ptr<Indexer<string>> _tag_indexer;
     
     shared_ptr<Dictionary> _dictionary;
+
+    shared_ptr<Dictionary> _phrase;
+    vector<SPAN> _phrase_list;
+    vector<vector<size_t>> _phrase_begins;
+    vector<vector<size_t>> _phrase_ends;
 
 
 };

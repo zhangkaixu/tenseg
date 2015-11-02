@@ -146,6 +146,7 @@ DEFINE_string(train, "", "Training file");
 DEFINE_string(test, "", "Development file");
 DEFINE_string(txt_model, "", "Development file");
 DEFINE_string(dict, "", "Dict file");
+DEFINE_string(phrase, "", "phrase Dict file");
 DEFINE_int32(iteration, 5, "Iteration");
 
 int main(int argc, char* argv[]) {
@@ -171,6 +172,13 @@ int main(int argc, char* argv[]) {
         auto dictionary = make_shared<Dictionary>();
         dictionary->load(FLAGS_dict.c_str());
         segtag.feature().set_dictionary(dictionary);
+    }
+
+    if (FLAGS_phrase.size()) {
+        auto phrase = make_shared<Dictionary>();
+        phrase->load(FLAGS_phrase.c_str());
+        segtag.feature().set_phrase(phrase);
+        printf("load phrase\n");
     }
 
     /// 词图产生
