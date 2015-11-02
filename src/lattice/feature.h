@@ -15,6 +15,258 @@ namespace tenseg {
 using namespace std;
 //class Feature;
 //
+
+
+
+template<class SPAN>
+class ILatticeFeature {
+public:
+    ILatticeFeature(){};
+    virtual void prepare(shared_ptr<string>& raw, shared_ptr<vector<size_t>>& off, vector<SPAN>& lattice) {}
+    virtual double unigram(size_t uni) {return 0;}
+    virtual double bigram(size_t first, size_t second) {return 0;}
+    virtual void calc_gradient(vector<SPAN>& gold, vector<SPAN>& output, Weight& gradient) {}
+    void set_weight(Weight& weight) { _weight = &weight; }
+protected:
+    Weight* _weight;
+};
+
+
+template<class SPAN>
+class DictFeature : public ILatticeFeature<SPAN> {
+public:
+    DictFeature(const string& filename) {
+        auto dictionary = make_shared<Dictionary>();
+        dictionary->load(filename.c_str());
+        _dict = dictionary;
+        _weight_prefix = "d:" + filename + ":";
+    }
+    
+    DictFeature(shared_ptr<Dictionary>& dict) {
+        _dict = dict;
+        _weight_prefix = "dic:";
+    }
+    
+    virtual void prepare(shared_ptr<string>& raw, shared_ptr<vector<size_t>>& off, vector<SPAN>& lattice) {
+        _lattice = &lattice;
+        _raw = raw;
+        _off = off;
+    }
+    virtual double unigram(size_t ind) {
+        const SPAN span = (*_lattice)[ind];
+
+        if (!_dict) return 0;
+
+        string key = _raw->substr((*_off)[span.begin], (*_off)[span.end] - (*_off)[span.begin]);
+        
+        if (!_dict->get(key, key)) return 0;
+
+        key = _weight_prefix + key;
+        double* value = this->_weight->get(key);
+
+        if (!value) return 0;
+        return *value;
+    }
+    virtual void calc_gradient( vector<SPAN>& gold, vector<SPAN>& output, Weight& gradient) {
+        for (size_t i = 0; i < gold.size(); i++) {
+            _unigram_gradient(&gold[i], gradient, 1);
+        }
+        for (size_t i = 0; i < output.size(); i++) {
+            _unigram_gradient(&output[i], gradient, -1);
+        }
+    }
+
+private:
+    double _unigram_gradient(const SPAN* span, Weight& gradient, double delta) {
+        if (!_dict) return 0;
+        string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
+        if (!_dict->get(key, key)) return 0;
+        key = _weight_prefix + key;
+        gradient.add_from(key, &delta, 1);
+    }
+private:
+    string _weight_prefix;
+    shared_ptr<Dictionary> _dict;
+
+    vector<SPAN>* _lattice;
+    shared_ptr<string> _raw;
+    shared_ptr<vector<size_t>> _off;
+};
+
+template<class SPAN>
+class PhraseFeature : public ILatticeFeature<SPAN> {
+public:
+    PhraseFeature(const string& filename) {
+        auto dictionary = make_shared<Dictionary>();
+        dictionary->load(filename.c_str());
+        _phrase = dictionary;
+        _weight_prefix = "p:" + filename + ":";
+    }
+    virtual void prepare(shared_ptr<string>& raw, shared_ptr<vector<size_t>>& off, vector<SPAN>& lattice) {
+        _lattice = &lattice;
+        _raw = raw;
+        _off = off;
+
+        while (_span_extra_info.size() < lattice.size()) {
+            _span_extra_info.push_back(span_extra_info_t());
+        }
+
+        for (size_t i = 0; i < lattice.size(); i++) {
+            _span_extra_info[i].reset();
+        }
+        _prepare_phrase();
+    }
+
+    double unigram(size_t ind) {
+        if (!_phrase) return 0;
+        if (_span_extra_info[ind].phrase_conflict_ == 0) return 0;
+        string key = _weight_prefix;
+        double* value = this->_weight->get(key);
+        if (!value) return 0;
+        return *value;
+    }
+    virtual void calc_gradient( vector<SPAN>& gold, vector<SPAN>& output, Weight& gradient) {
+        for (size_t i = 0; i < gold.size(); i++) {
+            _unigram_phrase_gradient(&gold[i], gradient, 1);
+        }
+        for (size_t i = 0; i < output.size(); i++) {
+            _unigram_phrase_gradient(&output[i], gradient, -1);
+        }
+    }
+
+
+private:
+    void _prepare_phrase() {
+        if (!_phrase) return;
+        _phrase_list.clear();
+        vector<SPAN> _tmp_phrase_list;
+
+        const size_t MAX_PHRASE = 12;
+        while (_phrase_begins.size() < _off->size()) {
+            _phrase_begins.push_back(vector<size_t>());
+        }
+        while (_phrase_ends.size() < _off->size()) {
+            _phrase_ends.push_back(vector<size_t>());
+        }
+        for (size_t i = 0; i < _off->size(); i++) {
+            _phrase_begins[i].clear();
+            _phrase_ends[i].clear();
+        }
+
+        /// 找到所有phrase
+        for (size_t i = 0; i < _off->size() - 1; i ++) {
+            size_t begin = (*_off)[i];
+            for (size_t j = i + 1; j < i + MAX_PHRASE; j ++) {
+                if (j >= _off->size()) break;
+                size_t end = (*_off)[j];
+                string value;
+                if (_phrase->get(_raw->substr(begin, end - begin), value)) {
+                    _tmp_phrase_list.push_back(SPAN(i, j));
+                    //printf("phrase %s %lu %lu\n",_raw->substr(begin, end - begin).c_str(), i, j);
+                    //_phrase_begins[i].push_back(j);
+                    //_phrase_ends[j].push_back(i);
+                }
+            }
+        }
+        /// 过滤掉overlap的phrase
+        for (auto& pa : _tmp_phrase_list) {
+            bool ok = true;
+            size_t a = pa.begin;
+            size_t b = pa.end;
+            for (auto& pb : _tmp_phrase_list) {
+                if (!ok) break;
+                size_t c = pb.begin;
+                size_t d = pb.end;
+                if ((a < c && c < b && b < d) ||
+                        (c< a && a < d && d < b)) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                _phrase_list.push_back(pa);
+            }
+        }
+
+        /// 填写begin end
+        for (auto& span : _phrase_list) {
+            size_t i = span.begin;
+            size_t j = span.end;
+            _phrase_begins[i].push_back(j);
+            _phrase_ends[j].push_back(i);
+        }
+
+        /// 为lattice计算是否冲突
+        for (size_t i = 0; i < _lattice->size(); i++) {
+            auto& span = (*_lattice)[i];
+            for (size_t j = span.begin + 1; j < span.end; j++) {
+                if (_span_extra_info[i].phrase_conflict_ == 1) break;
+                for (auto phrase_begin : _phrase_ends[j]) {
+                    if (phrase_begin < span.begin) {
+                        _span_extra_info[i].phrase_conflict_ = 1;
+                        break;
+                    }
+                }
+                for (auto phrase_end : _phrase_begins[j]) {
+                    if (phrase_end > span.end) {
+                        _span_extra_info[i].phrase_conflict_ = 1;
+                        break;
+                    }
+                }
+            }
+            if (_span_extra_info[i].phrase_conflict_) {
+                size_t b = (*_off)[span.begin];
+                size_t e = (*_off)[span.end];
+            }
+        }
+    }
+    double _unigram_phrase_gradient(const SPAN* span, Weight& gradient, double delta) {
+        if (!_phrase) return 0;
+
+        bool conflict = false;
+
+        for (size_t j = span->begin + 1; j < span->end; j++) {
+            if (conflict) break;
+            for (auto phrase_begin : _phrase_ends[j]) {
+                if (phrase_begin < span->begin) {
+                    conflict = true;
+                    break;
+                }
+            }
+            for (auto phrase_end : _phrase_begins[j]) {
+                if (phrase_end > span->end) {
+                    conflict = true;
+                    break;
+                }
+            }
+        }
+        if (conflict) {
+            string key = _weight_prefix;
+            gradient.add_from(key, &delta, 1);
+        }
+    }
+
+    struct span_extra_info_t {
+        size_t phrase_conflict_;
+        void reset() {
+            phrase_conflict_ = 0;
+        }
+    };
+    vector<span_extra_info_t> _span_extra_info;
+
+    string _weight_prefix;
+    shared_ptr<Dictionary> _phrase;
+
+    vector<SPAN> _phrase_list;
+    vector<vector<size_t>> _phrase_begins;
+    vector<vector<size_t>> _phrase_ends;
+
+    vector<SPAN>* _lattice;
+    shared_ptr<string> _raw;
+    shared_ptr<vector<size_t>> _off;
+};
+
+
 template<class SPAN>
 class LabelledFeature {
 private:
@@ -25,9 +277,6 @@ private:
         }
     };
 public:
-
-
-
     LabelledFeature() :_transition_ptr(nullptr),
         _dict(nullptr) {};
 
@@ -36,39 +285,36 @@ public:
     }
     void set_weight(Weight& dict) {
         _dict = &dict;
+        for (auto& f : _features) {
+            f->set_weight(dict);
+        }
     }
-    void set_dictionary(shared_ptr<Dictionary> dictionary) {
-        _dictionary = dictionary;
+    vector<shared_ptr<ILatticeFeature<SPAN>>>& features() {
+        return _features;
     }
-    void set_phrase(shared_ptr<Dictionary> phrase) {
-        _phrase = phrase;
-    }
-
     
 
     void prepare(
-            const string& raw,
-            const vector<size_t>& off,
-            const vector<SPAN>& lattice) {
+            shared_ptr<string>& raw,
+            shared_ptr<vector<size_t>>& off,
+            vector<SPAN>& lattice) {
         if (_dict == nullptr) {
             fprintf(stderr, "no weight are set for feature");
             return;
         }
-        //printf("%s\n", raw.c_str());
+        for (auto& f : _features) {
+            //printf("pre\n");
+            f->prepare(raw, off, lattice);
+        }
         _lattice = &lattice;
-        _off = &off;
-        _raw = &raw;
+        to_half(*raw, *off, _raw, _off);
         _transition_ptr = _dict->get("transition");
-        _calc_emission(*_dict, *_raw, _emission, false);
+        _calc_emission(*_dict, _raw, _emission, false);
 
         _labels.clear();
         _label_index.clear();
-        while (_span_extra_info.size() < lattice.size()) {
-            _span_extra_info.push_back(span_extra_info_t());
-        }
 
         for (size_t i = 0; i < lattice.size(); i++) {
-            _span_extra_info[i].reset();
             const SPAN& span = lattice[i];
             _label_index.push_back(_tag_indexer->get(span.label()));
             _labels.push_back(
@@ -77,7 +323,6 @@ public:
                     );
         }
 
-        _prepare_phrase();
     }
 
     void calc_gradient(
@@ -95,6 +340,9 @@ public:
             }
             if (is_equal) { return; }
         }
+        for (auto& f : _features) {
+            f->calc_gradient(gold, output, gradient);
+        }
 
         /// character based
         _emission.clear();
@@ -105,25 +353,8 @@ public:
         for (size_t i = 0; i < output.size(); i++) {
             _update_span_emi(output[i], -1);
         }
-        _calc_emission(gradient, *_raw, _emission, true);
+        _calc_emission(gradient, _raw, _emission, true);
 
-        /// dictionary based
-        if (_dictionary) {
-            for (size_t i = 0; i < gold.size(); i++) {
-                _unigram_dictionary_gradient(&gold[i], gradient, 1);
-            }
-            for (size_t i = 0; i < output.size(); i++) {
-                _unigram_dictionary_gradient(&output[i], gradient, -1);
-            }
-        }
-        if (_phrase) {
-            for (size_t i = 0; i < gold.size(); i++) {
-                _unigram_phrase_gradient(&gold[i], gradient, 1);
-            }
-            for (size_t i = 0; i < output.size(); i++) {
-                _unigram_phrase_gradient(&output[i], gradient, -1);
-            }
-        }
 
         /// bigram
         vector<double> g_trans(2 * _tag_indexer->size() * 2 * _tag_indexer->size());
@@ -137,8 +368,11 @@ public:
      * interface to calc unigram scores
      * */
     double unigram(size_t uni) {
-        const SPAN& span = (*_lattice)[uni];
         double score = 0;
+        for (auto& f : _features) {
+            score += f->unigram(uni);
+        }
+        const SPAN& span = (*_lattice)[uni];
 
         size_t l = _label_index[uni];
 
@@ -154,11 +388,6 @@ public:
         }
 
         /// word-based features
-        
-        /// dict-based
-        score += unigram_dictionary(uni, &span);
-        /// phrase-based
-        score += unigram_phrase(uni, &span);
         return score;
     }
 
@@ -166,9 +395,16 @@ public:
      * interface to calc bigram scores
      * */
     inline double bigram(size_t first, size_t second) {
+        double score = 0;
+        for (auto& f : _features) {
+            score += f->bigram(first, second);
+        }
         double* ptr = _transition_ptr;
-        if (ptr == nullptr) return 0;
-        return ptr[_trans_ind(first, second)];
+        if (ptr == nullptr){
+        } else {
+            score += ptr[_trans_ind(first, second)];
+        };
+        return score;
     }
 
     /**
@@ -223,10 +459,10 @@ public:
         if (!update) {
             emission.clear();
             emission.insert(emission.end(), 
-                    N * tagset_size() * (_off->size() - 1), 0);
+                    N * tagset_size() * (_off.size() - 1), 0);
         }
-        _calc_char_ngram_emision(1, raw, *_off, model, emission, update);
-        _calc_char_ngram_emision(2, raw, *_off, model, emission, update);
+        _calc_char_ngram_emision(1, raw, _off, model, emission, update);
+        _calc_char_ngram_emision(2, raw, _off, model, emission, update);
     }
 
     void _update_span_emi(SPAN& span, double delta) {
@@ -241,73 +477,7 @@ public:
             _emission[(span.end - 1) * N * tagset_size() + N * l + 2] += delta;
         }
     }
-    double _unigram_dictionary_gradient(const SPAN* span, Weight& gradient, double delta) {
-        if (!_dictionary) return 0;
-        string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
-        if (!_dictionary->get(key, key)) return 0;
-        key = string("dic:") + key;
 
-        //vector<double> g(_tag_indexer->size() + 1);
-        //g[0] += delta;
-        //g[_tag_indexer->get(span->label()) + 1] += delta;
-        //gradient.add_from(key, g.data(), g.size());
-        gradient.add_from(key, &delta, 1);
-    }
-
-    double unigram_dictionary(size_t ind, const SPAN* span) {
-        if (!_dictionary) return 0;
-
-        string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
-        
-        if (!_dictionary->get(key, key)) return 0;
-
-        key = string("dic:") + key;
-        double* value = _dict->get(key);
-
-        if (!value) return 0;
-        return *value;
-    }
-
-    double _unigram_phrase_gradient(const SPAN* span, Weight& gradient, double delta) {
-        if (!_phrase) return 0;
-        //printf("grad phrase\n");
-
-        bool conflict = false;
-        
-
-        for (size_t j = span->begin + 1; j < span->end; j++) {
-            if (conflict) break;
-            for (auto phrase_begin : _phrase_ends[j]) {
-                if (phrase_begin < span->begin) {
-                    conflict = true;
-                    break;
-                }
-            }
-            for (auto phrase_end : _phrase_begins[j]) {
-                if (phrase_end > span->end) {
-                    conflict = true;
-                    break;
-                }
-            }
-        }
-        //printf("grad conf %d\n", conflict);
-        if (conflict) {
-            string key = string("phrase_conflict:");
-            gradient.add_from(key, &delta, 1);
-        }
-        //gradient.add_from(key, &delta, 1);
-    }
-    double unigram_phrase(size_t ind, const SPAN* span) {
-        if (!_phrase) return 0;
-        //printf("phrase\n");
-        if (_span_extra_info[ind].phrase_conflict_ == 0) return 0;
-        //printf("conf %lu %lu\n", span->begin, span->end);
-        string key = string("phrase_conflict:");
-        double* value = _dict->get(key);
-        if (!value) return 0;
-        //printf("%g\n", *value);
-        return *value;
-    }
 
     inline size_t _trans_ind(size_t a, size_t b){
         return _labels[a] * 2 * _tag_indexer->size() + _labels[b];
@@ -336,100 +506,12 @@ public:
         return 1;
     }
 private:
-    void _prepare_phrase() {
-        if (!_phrase) return;
-        _phrase_list.clear();
-        vector<SPAN> _tmp_phrase_list;
-
-        const size_t MAX_PHRASE = 12;
-        while (_phrase_begins.size() < _off->size()) {
-            _phrase_begins.push_back(vector<size_t>());
-        }
-        while (_phrase_ends.size() < _off->size()) {
-            _phrase_ends.push_back(vector<size_t>());
-        }
-        for (size_t i = 0; i < _off->size(); i++) {
-            _phrase_begins[i].clear();
-            _phrase_ends[i].clear();
-        }
-
-        /// 找到所有phrase
-        for (size_t i = 0; i < _off->size() - 1; i ++) {
-            size_t begin = (*_off)[i];
-            for (size_t j = i + 1; j < i + MAX_PHRASE; j ++) {
-                if (j >= _off->size()) break;
-                size_t end = (*_off)[j];
-                string value;
-                if (_phrase->get(_raw->substr(begin, end - begin), value)) {
-                    _tmp_phrase_list.push_back(SPAN(i, j));
-                    //printf("phrase %s %lu %lu\n",_raw->substr(begin, end - begin).c_str(), i, j);
-                    //_phrase_begins[i].push_back(j);
-                    //_phrase_ends[j].push_back(i);
-                }
-            }
-        }
-        /// 过滤掉overlap的phrase
-        for (auto& pa : _tmp_phrase_list) {
-            bool ok = true;
-            size_t a = pa.begin;
-            size_t b = pa.end;
-            for (auto& pb : _tmp_phrase_list) {
-                if (!ok) break;
-                size_t c = pb.begin;
-                size_t d = pb.end;
-                if ((a < c && c < b && b < d) ||
-                        (c< a && a < d && d < b)) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (ok) {
-                _phrase_list.push_back(pa);
-            }
-        }
-        
-
-        /// 填写begin end
-        for (auto& span : _phrase_list) {
-            size_t i = span.begin;
-            size_t j = span.end;
-            _phrase_begins[i].push_back(j);
-            _phrase_ends[j].push_back(i);
-        }
-
-
-        /// 为lattice计算是否冲突
-        for (size_t i = 0; i < _lattice->size(); i++) {
-            auto& span = (*_lattice)[i];
-            for (size_t j = span.begin + 1; j < span.end; j++) {
-                if (_span_extra_info[i].phrase_conflict_ == 1) break;
-                for (auto phrase_begin : _phrase_ends[j]) {
-                    if (phrase_begin < span.begin) {
-                        _span_extra_info[i].phrase_conflict_ = 1;
-                        break;
-                    }
-                }
-                for (auto phrase_end : _phrase_begins[j]) {
-                    if (phrase_end > span.end) {
-                        _span_extra_info[i].phrase_conflict_ = 1;
-                        break;
-                    }
-                }
-            }
-            if (_span_extra_info[i].phrase_conflict_) {
-                size_t b = (*_off)[span.begin];
-                size_t e = (*_off)[span.end];
-                //printf("conf %s %lu %lu\n", (*_raw).substr(b, e - b).c_str(), span.begin, span.end);
-            }
-            //printf("%lu %lu\n", i, _span_extra_info[i].phrase_conflict_);
-        }
-    }
 
 
     const size_t N = 4;
 
-    const string* _raw;
-    const vector<size_t>* _off;
+    string _raw;
+    vector<size_t> _off;
     const vector<SPAN>* _lattice;
 
 
@@ -441,16 +523,9 @@ private:
     vector<size_t> _label_index;
     vector<double> _emission;
 
-    vector<span_extra_info_t> _span_extra_info;
-
     shared_ptr<Indexer<string>> _tag_indexer;
     
-    shared_ptr<Dictionary> _dictionary;
-
-    shared_ptr<Dictionary> _phrase;
-    vector<SPAN> _phrase_list;
-    vector<vector<size_t>> _phrase_begins;
-    vector<vector<size_t>> _phrase_ends;
+    vector<shared_ptr<ILatticeFeature<SPAN>>> _features;
 
 
 };

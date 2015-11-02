@@ -113,12 +113,12 @@ public:
             ) {
         const string& raw = *lat.raw;
         const vector<size_t>& off = *lat.off;
-        const vector<SPAN>& lattice = lat.spans;
+        vector<SPAN>& lattice = lat.spans;
         out.spans.clear();
         vector<SPAN>& output = out.spans;
         //cout<<">>>>>"<<lattice.size()<<"<<\n";
 
-        feature.prepare(raw, off, lattice);
+        feature.prepare(lat.raw, lat.off, lattice);
 
         /// Step 1 prepare path
         while (begins.size() < off.size()) { begins.push_back(vector<size_t>()); }

@@ -169,16 +169,21 @@ int main(int argc, char* argv[]) {
 
     /// 外部词典
     if (FLAGS_dict.size()) {
-        auto dictionary = make_shared<Dictionary>();
-        dictionary->load(FLAGS_dict.c_str());
-        segtag.feature().set_dictionary(dictionary);
+        for (auto& dfile : split(FLAGS_dict, ',')) {
+            auto df = make_shared<DictFeature<span_type>>(dfile);
+            segtag.feature().features().push_back(df);
+        }
     }
 
     if (FLAGS_phrase.size()) {
-        auto phrase = make_shared<Dictionary>();
-        phrase->load(FLAGS_phrase.c_str());
-        segtag.feature().set_phrase(phrase);
-        printf("load phrase\n");
+        for (auto& dfile : split(FLAGS_phrase, ',')) {
+            auto df = make_shared<PhraseFeature<span_type>>(dfile);
+            segtag.feature().features().push_back(df);
+        }
+        //auto phrase = make_shared<Dictionary>();
+        //phrase->load(FLAGS_phrase.c_str());
+        //segtag.feature().set_phrase(phrase);
+        //printf("load phrase\n");
     }
 
     /// 词图产生
