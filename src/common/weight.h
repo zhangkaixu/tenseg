@@ -76,6 +76,7 @@ public:
         printf("\n");
     }
 
+
     void insert(const string& key, const size_t length){
         /// check existing
         auto result = _map.find(key);

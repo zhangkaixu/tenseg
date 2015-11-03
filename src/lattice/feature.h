@@ -328,6 +328,8 @@ public:
                     );
         }
 
+        _calc_char_type();
+
     }
 
     void calc_gradient(
@@ -360,6 +362,25 @@ public:
         }
         _calc_emission(gradient, _raw, _emission, true);
 
+        /// word-based
+        vector<string> keys;
+        double delta = 1;
+
+        for (size_t i = 0; i < gold.size(); i++) {
+            keys.clear();
+            _uni_keys(gold[i], keys);
+            for (auto& key : keys) {
+                gradient.add_from(key, &delta, 1);
+            }
+        }
+        delta = -1;
+        for (size_t i = 0; i < output.size(); i++) {
+            keys.clear();
+            _uni_keys(output[i], keys);
+            for (auto& key : keys) {
+                gradient.add_from(key, &delta, 1);
+            }
+        }
 
         /// bigram
         vector<double> g_trans(2 * _tag_indexer->size() * 2 * _tag_indexer->size());
@@ -391,6 +412,15 @@ public:
             score += _emission[(span.end - 1) * N * tagset_size() + N * l + 2];
         }
 
+
+        /// word-based
+        vector<string> keys;
+        _uni_keys(span, keys);
+        for (auto& key : keys) {
+            double* ptr = _dict->get(key);
+            if (ptr) score += *ptr;
+        }
+
 #ifdef Debug
         printf("%s\n", _raw.substr(_off[span.begin],
                     _off[span.end] - _off[span.begin]).c_str());
@@ -405,6 +435,43 @@ public:
             score += s;
         }
         return score;
+    }
+
+    void _uni_keys(const SPAN& span, vector<string>& keys) {
+        char buffer[128];
+        char* p = buffer;
+        *(p++) = 'C'; *(p++) = 'T'; *(p++) = ':';
+        char* base = p;
+        if (span.end - span.begin == 1) { // Unigram
+            p = base;
+            *(p++) = 'U';
+            *(p++) = ((char)_char_types[span.begin] + '0');
+            *(p++) = 0;
+            string key(buffer);
+            keys.push_back(key);
+        } else if (span.end - span.begin == 2) { // bigram
+            p = base;
+            *(p++) = 'B';
+            *(p++) = ((char)_char_types[span.begin] + '0');
+            *(p++) = ((char)_char_types[span.begin + 1] + '0');
+            *(p++) = 0;
+            string key(buffer);
+            keys.push_back(key);
+        } else {
+            p = base;
+            *(p++) = 'M';
+            *(p++) = ((char)_char_types[span.begin] + '0');
+            size_t types = 0;
+            for (size_t i = span.begin + 1; i < span.end - 1; i++) {
+                types |= _char_types[i];
+            }
+            *(p++) = ((char)types + '0');
+            *(p++) = ((char)_char_types[span.end -1] + '0');
+            *(p++) = 0;
+            string key(buffer);
+            keys.push_back(key);
+        }
+
     }
 
     /**
@@ -522,6 +589,36 @@ public:
         return 1;
     }
 private:
+    void _calc_char_type() {
+        _char_types.clear();
+        for (size_t i = 0; i < _off.size() - 1; i++) {
+            size_t begin = _off[i];
+            size_t end = _off[i + 1];
+            size_t code = unicode(_raw.data() + begin, end - begin);
+            size_t type = 0;
+            if (code >= 19968 && code <= 40866) {
+                type |= CHINESE_CHAR;
+            }
+            if (code < 128) {
+                if (code >= '0' && code <= '9') {
+                    type |= NUMBER;
+                } else if ((code >= 'a' && code <= 'z')
+                    || (code >= 'A' && code <= 'Z')) {
+                    type |= LETTER;
+                } else {
+                    type |= OTHER_ASC;
+                }
+            }
+            _char_types.push_back(type);
+        }
+    }
+
+    enum char_type_t {
+        CHINESE_CHAR = 1,
+        NUMBER = 2,
+        LETTER = 4,
+        OTHER_ASC = 8
+    };
 
 
     const size_t N = 4;
@@ -529,6 +626,8 @@ private:
     string _raw;
     vector<size_t> _off;
     const vector<SPAN>* _lattice;
+    
+    vector<size_t> _char_types;
 
 
     /// features
