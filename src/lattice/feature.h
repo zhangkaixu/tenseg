@@ -38,52 +38,80 @@ public:
         dictionary->load(filename.c_str());
         _dict = dictionary;
         _weight_prefix = "d:" + filename + ":";
+        _bigram_weight_prefix = "d:" + filename + ":b:";
     }
-    
-    DictFeature(shared_ptr<Dictionary>& dict) {
-        _dict = dict;
-        _weight_prefix = "dic:";
-    }
-    
     virtual void prepare(shared_ptr<string>& raw, shared_ptr<vector<size_t>>& off, vector<SPAN>& lattice) {
         _lattice = &lattice;
         _raw = raw;
         _off = off;
     }
     virtual double unigram(size_t ind) {
-        const SPAN span = (*_lattice)[ind];
-
         if (!_dict) return 0;
-
-        string key = _raw->substr((*_off)[span.begin], (*_off)[span.end] - (*_off)[span.begin]);
-        
-        if (!_dict->get(key, key)) return 0;
-
-        key = _weight_prefix + key;
+        string key;
+        if (!_uni_key((*_lattice)[ind], key)) return 0;
         double* value = this->_weight->get(key);
-
         if (!value) return 0;
         return *value;
     }
+    //virtual double bigram(size_t ind1, size_t ind2) {
+    //    if (!_dict) return 0;
+    //    string key;
+    //    if (!_bi_key((*_lattice)[ind1], (*_lattice)[ind2], key)) return 0;
+    //    double* value = this->_weight->get(key);
+    //    if (!value) return 0;
+    //    return *value;
+    //}
     virtual void calc_gradient( vector<SPAN>& gold, vector<SPAN>& output, Weight& gradient) {
         for (size_t i = 0; i < gold.size(); i++) {
-            _unigram_gradient(&gold[i], gradient, 1);
+            if (i + 1 < gold.size()) {
+                _bigram_gradient(gold[i], gold[i + 1], gradient, 1);
+            }
+            _unigram_gradient(gold[i], gradient, 1);
         }
         for (size_t i = 0; i < output.size(); i++) {
-            _unigram_gradient(&output[i], gradient, -1);
+            if (i + 1 < output.size()) {
+                _bigram_gradient(output[i], output[i + 1], gradient, -1);
+            }
+            _unigram_gradient(output[i], gradient, -1);
         }
     }
 
 private:
-    double _unigram_gradient(const SPAN* span, Weight& gradient, double delta) {
+    bool _bi_key(const SPAN& first, const SPAN& second, string& key) {
+        key = _raw->substr((*_off)[first.begin], (*_off)[second.end] - (*_off)[first.begin]);
+        if (!_dict->get(key, key)) {
+            return false;
+        } else {
+            key = _bigram_weight_prefix + key;
+        }
+        return true;
+    }
+    bool _uni_key(const SPAN& span, string& key) {
+        key = _raw->substr((*_off)[span.begin], (*_off)[span.end] - (*_off)[span.begin]);
+        if (!_dict->get(key, key)) {
+            return false;
+            key = _weight_prefix + "MISS" + (char)('0' + (char)(span.end - span.begin));
+        } else {
+            key = _weight_prefix + key;
+        }
+        return true;
+    }
+
+    double _unigram_gradient(const SPAN& span, Weight& gradient, double delta) {
         if (!_dict) return 0;
-        string key = _raw->substr((*_off)[span->begin], (*_off)[span->end] - (*_off)[span->begin]);
-        if (!_dict->get(key, key)) return 0;
-        key = _weight_prefix + key;
+        string key;
+        if (!_uni_key(span, key)) return 0;
+        gradient.add_from(key, &delta, 1);
+    }
+    double _bigram_gradient(const SPAN& first, const SPAN& second, Weight& gradient, double delta) {
+        if (!_dict) return 0;
+        string key;
+        if (!_bi_key(first, second, key)) return 0;
         gradient.add_from(key, &delta, 1);
     }
 private:
     string _weight_prefix;
+    string _bigram_weight_prefix;
     shared_ptr<Dictionary> _dict;
 
     vector<SPAN>* _lattice;
@@ -193,6 +221,7 @@ private:
                     break;
                 }
             }
+            ok = true;
             if (ok) {
                 _phrase_list.push_back(pa);
             }
@@ -275,6 +304,9 @@ public:
             fprintf(stderr, "no weight are set for feature");
             return;
         }
+#ifdef Debug
+        printf("%s\n", raw->data());
+#endif
         for (auto& f : _features) {
             //printf("pre\n");
             f->prepare(raw, off, lattice);
@@ -342,15 +374,9 @@ public:
      * */
     double unigram(size_t uni) {
         const SPAN& span = (*_lattice)[uni];
-        LOG_INFO("[span]("<<span.begin<< ","<<span.end<<")");
         //printf("haha\n");
 
         double score = 0;
-        for (auto& f : _features) {
-            double s = f->unigram(uni);
-            //LOG(INFO) << "feature> " << s;
-            score += s;
-        }
 
         size_t l = _label_index[uni];
 
@@ -365,7 +391,19 @@ public:
             score += _emission[(span.end - 1) * N * tagset_size() + N * l + 2];
         }
 
-        /// word-based features
+#ifdef Debug
+        printf("%s\n", _raw.substr(_off[span.begin],
+                    _off[span.end] - _off[span.begin]).c_str());
+        printf("basic features: %g\n", score);
+#endif
+
+        for (auto& f : _features) {
+            double s = f->unigram(uni);
+#ifdef Debug
+            printf("features: %g\n", s);
+#endif
+            score += s;
+        }
         return score;
     }
 

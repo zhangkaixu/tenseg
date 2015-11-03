@@ -44,6 +44,7 @@ public:
         _punc.insert(string("。")); _punc.insert(string("，"));
         _punc.insert(string("？")); _punc.insert(string("！"));
         _punc.insert(string("：")); _punc.insert(string("“"));
+        _punc.insert(string(":"));
         _punc.insert(string("”"));
     }
 

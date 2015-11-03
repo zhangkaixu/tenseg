@@ -30,6 +30,7 @@ public:
 
         Eval<SPAN> eval;
         Learner<Weight> learner;
+        //AvgAdaGrad<Weight> learner;
         lattice_t<SPAN> out;
 
         for (size_t it = 0; it < iterations; it ++) {
