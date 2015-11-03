@@ -324,9 +324,9 @@ public:
             const SPAN& span = lattice[i];
             _label_index.push_back(_tag_indexer->get(span.label()));
             size_t wl = span.end - span.begin;
-            if (wl > 5) wl = 5;
+            if (wl > MAX_LEN) wl = MAX_LEN;
             _labels.push_back(
-                        _tag_indexer->get(span.label()) * 6
+                        _tag_indexer->get(span.label()) * (MAX_LEN + 1)
                         + wl
                     );
         }
@@ -387,7 +387,7 @@ public:
         }
 
         /// bigram
-        vector<double> g_trans(6 * _tag_indexer->size() * 6 * _tag_indexer->size());
+        vector<double> g_trans((MAX_LEN + 1) * _tag_indexer->size() * (MAX_LEN + 1) * _tag_indexer->size());
         _update_g_trans(g_trans, gold, 1);
         _update_g_trans(g_trans, output, -1);
         gradient.add_from("transition", &g_trans[0], g_trans.size());
@@ -462,6 +462,7 @@ public:
     }
 
     void _uni_keys(const SPAN& span, vector<string>& keys) {
+        return;
         char buffer[128];
         char* p = buffer;
         *(p++) = 'C'; *(p++) = 'T'; *(p++) = ':';
@@ -617,17 +618,17 @@ public:
 
 
     inline size_t _trans_ind(size_t a, size_t b){
-        return _labels[a] * 6 * _tag_indexer->size() + _labels[b];
+        return _labels[a] * (MAX_LEN + 1) * _tag_indexer->size() + _labels[b];
     }
 
     inline size_t _trans_ind(const SPAN& span_a, const SPAN& span_b){
         size_t wl = span_a.end - span_a.begin;
-        if (wl > 5) wl = 5;
-        size_t i_a =_tag_indexer->get(span_a.label()) * 6 + wl;
+        if (wl >MAX_LEN) wl = MAX_LEN;
+        size_t i_a =_tag_indexer->get(span_a.label()) * (MAX_LEN + 1) + wl;
         wl = span_b.end - span_b.begin;
-        if (wl > 5) wl = 5;
-        size_t i_b =_tag_indexer->get(span_b.label()) * 6 + wl;
-        return i_a * 6 * _tag_indexer->size() + i_b;
+        if (wl > MAX_LEN) wl = MAX_LEN;
+        size_t i_b =_tag_indexer->get(span_b.label()) * (MAX_LEN + 1) + wl;
+        return i_a * (MAX_LEN + 1) * _tag_indexer->size() + i_b;
     }
 
     void _update_g_trans(vector<double>& g_trans, vector<SPAN>& seq, double delta) {
@@ -678,6 +679,7 @@ private:
 
 
     const size_t N = 4;
+    const size_t MAX_LEN = 2;
 
     string _raw;
     vector<size_t> _off;
