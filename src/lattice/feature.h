@@ -411,8 +411,8 @@ public:
 
         /// char-based features
         if (span.end - span.begin == 1) { // S
-#ifdef Debug
             score += _emission[span.begin * N * tagset_size() + N * l + 3];
+#ifdef Debug
             printf("emission S %g\n", _emission[span.begin * N * tagset_size() + N * l + 3]);
 #endif
 
@@ -679,7 +679,7 @@ private:
 
 
     const size_t N = 4;
-    const size_t MAX_LEN = 2;
+    const size_t MAX_LEN = 4;
 
     string _raw;
     vector<size_t> _off;
