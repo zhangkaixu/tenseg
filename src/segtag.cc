@@ -148,7 +148,7 @@ DEFINE_string(test, "", "Development file");
 DEFINE_string(txt_model, "", "Development file");
 DEFINE_string(dict, "", "Dict file");
 DEFINE_string(phrase, "", "phrase Dict file");
-DEFINE_int32(iteration, 10, "Iteration");
+DEFINE_int32(iteration, 5, "Iteration");
 //DEFINE_int32(logtostderr, 1, "");
 
 int main(int argc, char* argv[]) {

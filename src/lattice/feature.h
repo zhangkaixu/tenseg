@@ -312,7 +312,8 @@ public:
             f->prepare(raw, off, lattice);
         }
         _lattice = &lattice;
-        to_half(*raw, *off, _raw, _off);
+        //to_half(*raw, *off, _raw, _off);
+        _normalizer(*raw, *off, _raw, _off);
         _transition_ptr = _dict->get("transition");
         _calc_emission(*_dict, _raw, _emission, false);
 
@@ -322,15 +323,18 @@ public:
         for (size_t i = 0; i < lattice.size(); i++) {
             const SPAN& span = lattice[i];
             _label_index.push_back(_tag_indexer->get(span.label()));
+            size_t wl = span.end - span.begin;
+            if (wl > 5) wl = 5;
             _labels.push_back(
-                        _tag_indexer->get(span.label()) * 2
-                        + ((span.end - span.begin == 1)?0:1)
+                        _tag_indexer->get(span.label()) * 6
+                        + wl
                     );
         }
 
         _calc_char_type();
 
     }
+
 
     void calc_gradient(
             vector<SPAN>& gold, 
@@ -383,7 +387,7 @@ public:
         }
 
         /// bigram
-        vector<double> g_trans(2 * _tag_indexer->size() * 2 * _tag_indexer->size());
+        vector<double> g_trans(6 * _tag_indexer->size() * 6 * _tag_indexer->size());
         _update_g_trans(g_trans, gold, 1);
         _update_g_trans(g_trans, output, -1);
         gradient.add_from("transition", &g_trans[0], g_trans.size());
@@ -395,7 +399,10 @@ public:
      * */
     double unigram(size_t uni) {
         const SPAN& span = (*_lattice)[uni];
-        //printf("haha\n");
+#ifdef Debug
+        printf("%s\n", _raw.substr(_off[span.begin],
+                    _off[span.end] - _off[span.begin]).c_str());
+#endif
 
         double score = 0;
 
@@ -403,29 +410,46 @@ public:
 
         /// char-based features
         if (span.end - span.begin == 1) { // S
+#ifdef Debug
             score += _emission[span.begin * N * tagset_size() + N * l + 3];
+            printf("emission S %g\n", _emission[span.begin * N * tagset_size() + N * l + 3]);
+#endif
+
         } else { // BM*E
+#ifdef Debug
+            printf("emission B %g\n", _emission[span.begin * N * tagset_size() + N * l + 0]);
+#endif
             score += _emission[span.begin * N * tagset_size() + N * l + 0];
             for (size_t i = span.begin + 1; i < span.end - 1; i++) {
                 score += _emission[i * N * tagset_size() + N * l + 1];
+#ifdef Debug
+                printf("emission M %g\n", _emission[i * N * tagset_size() + N * l + 1]);
+#endif
             }
             score += _emission[(span.end - 1) * N * tagset_size() + N * l + 2];
+#ifdef Debug
+            printf("emission E %g\n", _emission[(span.end - 1) * N * tagset_size() + N * l + 2]);
+#endif
         }
 
+#ifdef Debug
+        printf("basic features: %g\n", score);
+#endif
 
         /// word-based
         vector<string> keys;
         _uni_keys(span, keys);
         for (auto& key : keys) {
             double* ptr = _dict->get(key);
+#ifdef Debug
+            if (ptr) {
+                printf("word-based feature %s : %g\n", key.data(), *ptr);
+            }
+
+#endif
             if (ptr) score += *ptr;
         }
 
-#ifdef Debug
-        printf("%s\n", _raw.substr(_off[span.begin],
-                    _off[span.end] - _off[span.begin]).c_str());
-        printf("basic features: %g\n", score);
-#endif
 
         for (auto& f : _features) {
             double s = f->unigram(uni);
@@ -445,7 +469,17 @@ public:
         if (span.end - span.begin == 1) { // Unigram
             p = base;
             *(p++) = 'U';
+            if (span.begin > 0) {
+                *(p++) = ((char)_char_types[span.begin - 1] + '0');
+            } else {
+                *(p++) = '#';
+            }
             *(p++) = ((char)_char_types[span.begin] + '0');
+            if (span.end + 1 < _char_types.size()) {
+                *(p++) = ((char)_char_types[span.end] + '0');
+            } else {
+                *(p++) = '#';
+            }
             *(p++) = 0;
             string key(buffer);
             keys.push_back(key);
@@ -469,6 +503,9 @@ public:
             *(p++) = ((char)_char_types[span.end -1] + '0');
             *(p++) = 0;
             string key(buffer);
+            //if (key == "CT:M131") {
+            //    printf("%s\n", _raw.substr(_off[span.begin], _off[span.end] - _off[span.begin]).c_str());
+            //}
             keys.push_back(key);
         }
 
@@ -480,11 +517,19 @@ public:
     inline double bigram(size_t first, size_t second) {
         double score = 0;
         for (auto& f : _features) {
-            score += f->bigram(first, second);
+            double b_score = f->bigram(first, second);
+            score += b_score;
+#ifdef Debug
+            printf("bigram feature %g\n", b_score);
+#endif
         }
         double* ptr = _transition_ptr;
         if (ptr == nullptr){
         } else {
+#ifdef Debug
+            //printf("bigram transition %lu\n", _trans_ind(first, second));
+            printf("bigram transition %g\n", ptr[_trans_ind(first, second)]);
+#endif
             score += ptr[_trans_ind(first, second)];
         };
         return score;
@@ -518,6 +563,15 @@ public:
                 }
             };
 
+#ifdef Debug
+            printf("char_key : %s\n", uni.c_str());
+            for (size_t k = 0; k < (n + 2); k++) {
+                for (size_t j = 0; j < N * tagset_size(); j++) {
+                    printf(" %.3g ", m[k * tagset_size() * N + j]);
+                }
+                printf("\n");
+            };
+#endif
 
             int b = (((int)i - 1) * (int)N * (int)tagset_size());
             int e = (min(((int)(2 + n)), ((int)begins.size() - (int)i))
@@ -563,15 +617,17 @@ public:
 
 
     inline size_t _trans_ind(size_t a, size_t b){
-        return _labels[a] * 2 * _tag_indexer->size() + _labels[b];
+        return _labels[a] * 6 * _tag_indexer->size() + _labels[b];
     }
 
     inline size_t _trans_ind(const SPAN& span_a, const SPAN& span_b){
-        size_t i_a =_tag_indexer->get(span_a.label()) * 2 
-            + ((span_a.end - span_a.begin == 1)?0:1);
-        size_t i_b =_tag_indexer->get(span_b.label()) * 2 
-            + ((span_b.end - span_b.begin == 1)?0:1);
-        return i_a * 2 * _tag_indexer->size() + i_b;
+        size_t wl = span_a.end - span_a.begin;
+        if (wl > 5) wl = 5;
+        size_t i_a =_tag_indexer->get(span_a.label()) * 6 + wl;
+        wl = span_b.end - span_b.begin;
+        if (wl > 5) wl = 5;
+        size_t i_b =_tag_indexer->get(span_b.label()) * 6 + wl;
+        return i_a * 6 * _tag_indexer->size() + i_b;
     }
 
     void _update_g_trans(vector<double>& g_trans, vector<SPAN>& seq, double delta) {
@@ -629,6 +685,8 @@ private:
     
     vector<size_t> _char_types;
 
+
+    Normalizer _normalizer;
 
     /// features
     Weight* _dict;
