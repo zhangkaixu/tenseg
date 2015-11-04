@@ -143,19 +143,30 @@ public:
         SPAN* span = &(*_lattice)[ind];
 
         for (size_t j = span->begin + 1; j < span->end; j++) {
+            //printf("span inner index %lu\n", j);
             for (auto phrase_ind : _phrase_ends[j]) {
                 auto phrase_begin = _phrase_list[phrase_ind].begin;
+                //printf("left phrase ind %lu, begin %lu end %lu\n", phrase_ind,
+                //        _phrase_list[phrase_ind].begin,
+                //        _phrase_list[phrase_ind].end
+                //        );
                 if (phrase_begin < span->begin) {
                     string key = _weight_prefix + _phrase_list[phrase_ind].label();
+                    //printf("conflict!\n");
                     double* value = this->_weight->get(key);
                     if (value) score += *value;
                 }
             }
             for (auto phrase_ind : _phrase_begins[j]) {
+                //printf("right phrase ind %lu, begin %lu end %lu\n", phrase_ind,
+                //        _phrase_list[phrase_ind].begin,
+                //        _phrase_list[phrase_ind].end
+                //        );
+
                 auto phrase_end = _phrase_list[phrase_ind].end;
                 if (phrase_end > span->end) {
-                    //string key = _weight_prefix;
                     string key = _weight_prefix + _phrase_list[phrase_ind].label();
+                    //printf("conflict!\n");
                     double* value = this->_weight->get(key);
                     if (value) score += *value;
                 }
@@ -223,12 +234,17 @@ private:
             }
             ok = true;
             if (ok) {
+#ifdef Debug
+                printf("phrase %lu %lu %s %s\n", a, b, 
+                        _raw->substr((*_off)[a], (*_off)[b] - (*_off)[a]).c_str(),
+                        pa.label().c_str()
+                        );
+#endif
                 _phrase_list.push_back(pa);
             }
         }
 
         /// 填写begin end
-        //for (auto& span : _phrase_list) {
         for (size_t ind = 0; ind < _phrase_list.size(); ind++) {
             auto& span = _phrase_list[ind];
             size_t i = span.begin;
@@ -245,8 +261,15 @@ private:
             for (auto phrase_ind : _phrase_ends[j]) {
                 auto phrase_begin = _phrase_list[phrase_ind].begin;
                 if (phrase_begin < span->begin) {
-                    //string key = _weight_prefix;
                     string key = _weight_prefix + _phrase_list[phrase_ind].label();
+
+                    //if (delta == 1) {
+                    //    auto& phrase = _phrase_list[phrase_ind];
+                    //    printf("%s\n", _raw->data());
+                    //    printf("%s\n", _raw->substr((*_off)[phrase.begin], (*_off)[phrase.end] - (*_off)[phrase.begin]).c_str());
+                    //    printf("phrase update\n");
+                    //}
+
                     gradient.add_from(key, &delta, 1);
                 }
             }
@@ -254,8 +277,13 @@ private:
                 auto phrase_end = _phrase_list[phrase_ind].end;
 
                 if (phrase_end > span->end) {
-                    //string key = _weight_prefix;
                     string key = _weight_prefix + _phrase_list[phrase_ind].label();
+                    //if (delta == 1) {
+                    //    auto& phrase = _phrase_list[phrase_ind];
+                    //    printf("%s\n", _raw->data());
+                    //    printf("%s\n", _raw->substr((*_off)[phrase.begin], (*_off)[phrase.end] - (*_off)[phrase.begin]).c_str());
+                    //    printf("phrase update\n");
+                    //}
                     gradient.add_from(key, &delta, 1);
                 }
             }
@@ -305,6 +333,7 @@ public:
             return;
         }
 #ifdef Debug
+        printf(">>>>>>>>>>>>>>>>>");
         printf("%s\n", raw->data());
 #endif
         for (auto& f : _features) {
