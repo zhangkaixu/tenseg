@@ -34,7 +34,7 @@ template<class SPAN>
 class DictFeature : public ILatticeFeature<SPAN> {
 public:
     DictFeature(const string& filename) {
-        auto dictionary = make_shared<Dictionary>();
+        auto dictionary = make_shared<Dictionary<string>>();
         dictionary->load(filename.c_str());
         _dict = dictionary;
         _weight_prefix = "d:" + filename + ":";
@@ -112,7 +112,7 @@ private:
 private:
     string _weight_prefix;
     string _bigram_weight_prefix;
-    shared_ptr<Dictionary> _dict;
+    shared_ptr<Dictionary<string>> _dict;
 
     vector<SPAN>* _lattice;
     shared_ptr<string> _raw;
@@ -123,7 +123,7 @@ template<class SPAN>
 class PhraseFeature : public ILatticeFeature<SPAN> {
 public:
     PhraseFeature(const string& filename) {
-        auto dictionary = make_shared<Dictionary>();
+        auto dictionary = make_shared<Dictionary<string>>();
         dictionary->load(filename.c_str());
         _phrase = dictionary;
         _weight_prefix = "p:" + filename + ":";
@@ -292,7 +292,7 @@ private:
 
 
     string _weight_prefix;
-    shared_ptr<Dictionary> _phrase;
+    shared_ptr<Dictionary<string>> _phrase;
 
     vector<SPAN> _phrase_list;
     vector<vector<size_t>> _phrase_begins;

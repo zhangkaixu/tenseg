@@ -7,6 +7,7 @@
 #include "common/dictionary.h"
 
 #include "lattice/segtag_model.h"
+#include "lattice/ngram_feature.h"
 
 #include <cstdio>
 #include <algorithm>
@@ -147,6 +148,7 @@ DEFINE_string(train, "", "Training file");
 DEFINE_string(test, "", "Development file");
 DEFINE_string(txt_model, "", "Development file");
 DEFINE_string(dict, "", "Dict file");
+DEFINE_string(uni_freq, "", "Unigram frequence");
 DEFINE_string(phrase, "", "phrase Dict file");
 DEFINE_int32(iteration, 5, "Iteration");
 //DEFINE_int32(logtostderr, 1, "");
@@ -173,6 +175,13 @@ int main(int argc, char* argv[]) {
     if (FLAGS_dict.size()) {
         for (auto& dfile : split(FLAGS_dict, ',')) {
             auto df = make_shared<DictFeature<span_type>>(dfile);
+            segtag.feature().features().push_back(df);
+        }
+    }
+
+    if (FLAGS_uni_freq.size()) {
+        for (auto& dfile : split(FLAGS_uni_freq, ',')) {
+            auto df = make_shared<UnigramFeature<span_type>>(dfile);
             segtag.feature().features().push_back(df);
         }
     }
