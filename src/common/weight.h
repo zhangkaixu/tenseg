@@ -1,5 +1,6 @@
 #pragma once
 #include <map>
+#include <cmath>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -75,6 +76,7 @@ public:
         printf("\n");
     }
 
+
     void insert(const string& key, const size_t length){
         /// check existing
         auto result = _map.find(key);
@@ -143,6 +145,96 @@ public:
 
         for (size_t i = 0; i < vec.size(); i++) {
             ptr[i] += vec[i];
+        }
+    }
+    void inverse() {
+        double* ptr;
+        size_t len;
+        for (auto it = _map.begin();
+                it != _map.end();
+                ++ it) {
+            get(it->first, ptr, len);
+            for (size_t i = 0; i < len; i++) {
+                ptr[i] = 1.0 / ptr[i];
+            }
+        }
+    }
+    void power() {
+        double* ptr;
+        size_t len;
+        for (auto it = _map.begin();
+                it != _map.end();
+                ++ it) {
+            get(it->first, ptr, len);
+            for (size_t i = 0; i < len; i++) {
+                ptr[i] = ptr[i] * ptr[i];
+            }
+        }
+    }
+    void safe_sqrt(double de) {
+        double* ptr;
+        size_t len;
+        for (auto it = _map.begin();
+                it != _map.end();
+                ++ it) {
+            get(it->first, ptr, len);
+            for (size_t i = 0; i < len; i++) {
+                if (ptr[i] > 0) {
+                    ptr[i] = sqrt(ptr[i]);
+                } else {
+                    ptr[i] = de;
+                }
+            }
+        }
+    }
+    void ada_update(Weight& other) {
+        double* ptr;
+        size_t len;
+        double* o_ptr;
+        size_t o_len;
+        for (auto it = _map.begin();
+                it != _map.end();
+                ++ it) {
+            get(it->first, ptr, len);
+            other.get(it->first, o_ptr, o_len);
+            if (!o_ptr || o_len != len) {
+                for (size_t i = 0; i < len; i++) {
+                    ptr[i] = ptr[i];
+                }
+            } else {
+                for (size_t i = 0; i < len; i++) {
+                    if (o_ptr[i] > 0) {
+                        ptr[i] /= sqrt(o_ptr[i]);
+                    } else {
+                        ptr[i] /= 1;
+                    }
+                }
+            }
+
+        }
+    }
+
+    void multiply(Weight& other) {
+        double* ptr;
+        size_t len;
+        double* o_ptr;
+        size_t o_len;
+        for (auto it = _map.begin();
+                it != _map.end();
+                ++ it) {
+            get(it->first, ptr, len);
+            other.get(it->first, o_ptr, o_len);
+            if (!o_ptr || o_len != len) {
+                for (size_t i = 0; i < len; i++) {
+                    ptr[i] = 0;
+                }
+                
+                continue;
+            }
+
+            for (size_t i = 0; i < len; i++) {
+                ptr[i] *= o_ptr[i];
+            }
         }
     }
     void update(Weight& other, double eta) {

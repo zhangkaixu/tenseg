@@ -113,12 +113,12 @@ public:
             ) {
         const string& raw = *lat.raw;
         const vector<size_t>& off = *lat.off;
-        const vector<SPAN>& lattice = lat.spans;
+        vector<SPAN>& lattice = lat.spans;
         out.spans.clear();
         vector<SPAN>& output = out.spans;
         //cout<<">>>>>"<<lattice.size()<<"<<\n";
 
-        feature.prepare(raw, off, lattice);
+        feature.prepare(lat.raw, lat.off, lattice);
 
         /// Step 1 prepare path
         while (begins.size() < off.size()) { begins.push_back(vector<size_t>()); }
@@ -140,6 +140,10 @@ public:
         /// Step 2 search
         for (size_t i = 0; i < off.size() - 1; i++) {
             for (size_t k = 0; k < begins[i].size(); k++) {
+#ifdef Debug
+                printf("_________________\n");
+                printf("unigram %lu\n", begins[i][k]);
+#endif
                 double& max_score = scores_[begins[i][k]];
                 size_t& max_pointer = pointers_[begins[i][k]];
                 bool has_max = false;
@@ -147,8 +151,16 @@ public:
                     double score = 0;
                     size_t p = ends[i][j];
                     score = scores_[p];
-                    score += feature.bigram(ends[i][j], begins[i][k]);
                     /// bigram features
+                    double bi_score = feature.bigram(ends[i][j], begins[i][k]);
+                    score += bi_score;
+#ifdef Debug
+                    printf("bi score %.5g\n", bi_score);
+                    printf("pre-unigram %lu 's score %.5g, after bigram %.5g\n", 
+                            ends[i][j], 
+                            scores_[p],
+                            score);
+#endif
                     if (!has_max || max_score < score) {
                         has_max = true;
                         max_score = score;
@@ -156,7 +168,13 @@ public:
                     }
                 }
                 /// unigram features
-                max_score += feature.unigram(begins[i][k]);
+                double uni_score = feature.unigram(begins[i][k]);
+                max_score += uni_score;
+#ifdef Debug
+                printf("unigram %lu 's uni score : %.5g\n", begins[i][k], uni_score);
+                printf("unigram %lu 's final score : %.5g\n", begins[i][k], max_score);
+                printf("````````````````````\n");
+#endif
             }
         }
 

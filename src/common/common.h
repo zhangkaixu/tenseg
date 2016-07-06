@@ -9,6 +9,13 @@
 #include <map>
 #include <ctime>
 
+
+#ifdef Debug
+#define LOG_INFO(x) LOG(INFO) << x
+#else
+#define LOG_INFO(x)
+#endif
+
 namespace tenseg {
 using namespace std;
 
@@ -143,5 +150,128 @@ private:
     map<T, size_t> index_;
     vector<T> list_;
 };
+
+
+void utf8(const size_t unicode, vector<char>& buffer) {
+    if (unicode <= 0x7F) {
+        buffer.push_back((char)unicode);
+        return;
+    } else if (unicode <=0x7FF) {
+        buffer.push_back((unicode >> 6) | 0xC0);
+        buffer.push_back((unicode & 0x3F) | 0x80);
+        return;
+    } else {
+        buffer.push_back(((unicode >> 12) & 0x0F) | 0xE0);
+        buffer.push_back(((unicode >> 6) & 0x3F) | 0x80);
+        buffer.push_back(((unicode >> 0) & 0x3F) | 0x80);
+        return;
+    }
+}
+
+size_t unicode(const char* p, const size_t len) {
+   size_t code = 0;
+    switch (len) {
+        case 0:
+           return 0;
+        case 1:
+           return (*p) & 0x7F;
+        case 2:
+           code = *(p++) & 0x1F;
+           code = (code << 6) | (*(p++) & 0x3F);
+           return code;
+        case 3:
+           code = *(p++) & 0x0F;
+           code = (code << 6) | (*(p++) & 0x3F);
+           code = (code << 6) | (*(p++) & 0x3F);
+           return code;
+    }
+    return 0;
+}
+
+void to_half(const string& src_raw,
+        const vector<size_t>& src_off,
+        string& tgt_raw,
+        vector<size_t>& tgt_off) {
+
+    vector<char> buffer;
+    buffer.reserve(src_raw.size());
+    tgt_off.clear();
+    tgt_off.push_back(0);
+
+    for (size_t i = 0; i < src_off.size() - 1; i++) {
+        size_t begin = src_off[i];
+        size_t end = src_off[i+1];
+        //printf("%s\n", src_raw.substr(src_off[i], src_off[i+1] - src_off[i]).c_str());
+        size_t code = unicode(src_raw.data() + src_off[i], src_off[i+1] - src_off[i]);
+        //printf("%lu\n", unicode(src_raw.data() + src_off[i], src_off[i+1] - src_off[i]));
+
+        if (code >= 0xff01 && code <= 0xff5e) {
+            //printf("%s\n", src_raw.substr(src_off[i], src_off[i+1] - src_off[i]).c_str());
+            buffer.push_back(code - 65248);
+            //printf("%c\n", code - 65248);
+        } else {
+            for (size_t j = begin; j < end; j++) {
+                buffer.push_back(src_raw[j]);
+            }
+        }
+        tgt_off.push_back(buffer.size());
+    }
+
+    buffer.push_back(0);
+    tgt_raw = string(buffer.data());
+}
+
+class Normalizer {
+public:
+    Normalizer() {
+        for (size_t code = 0xff01; code <= 0xff5e; code++) {
+            _map[code] = code - 65248;
+        }
+        _map[9675] = 38646; //○ : 零
+    }
+    void operator()(const string& src_raw,
+        const vector<size_t>& src_off,
+        string& tgt_raw,
+        vector<size_t>& tgt_off) {
+    vector<char> buffer;
+    buffer.reserve(src_raw.size());
+    tgt_off.clear();
+    tgt_off.push_back(0);
+
+    for (size_t i = 0; i < src_off.size() - 1; i++) {
+        size_t begin = src_off[i];
+        size_t end = src_off[i+1];
+        size_t code = unicode(src_raw.data() + src_off[i], src_off[i+1] - src_off[i]);
+        auto res = _map.find(code);
+        if (res == _map.end()) {
+            for (size_t j = begin; j < end; j++) {
+                buffer.push_back(src_raw[j]);
+            }
+        } else {
+            utf8(res->second, buffer);
+        }
+        tgt_off.push_back(buffer.size());
+    }
+
+    buffer.push_back(0);
+    tgt_raw = string(buffer.data());
+    }
+private:
+    map<size_t, size_t> _map;
+};
+
+std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    split(s, delim, elems);
+    return elems;
+}
 
 }
