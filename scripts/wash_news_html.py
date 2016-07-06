@@ -9,6 +9,11 @@ import json
 from readability.readability import Document
 
 #logging.basicConfig(level=logging.ERROR)
+"""
+对输入流的html进行清洗
+html的分割为`<docurl>XX</docurl>`
+输出json格式结果
+"""
 
 def decode_doc(doc, url):
     #print('doc')
@@ -87,7 +92,7 @@ def gen_doc():
     for line in sys.stdin:
         if line.startswith(b'<docurl>'):
             n = n + 1
-            print(n, file = sys.stderr)
+            print(n, file = sys.stderr, end = '\r')
             if cache :
                 data = decode_doc(cache, url)
                 yield data
